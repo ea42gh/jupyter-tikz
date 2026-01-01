@@ -51,7 +51,7 @@ mkdocs-macros-plugin = "~1.0.5"
 mkdocs-material = {extras = ["imaging"], version = "^9.5.30"}
 
 [tool.pytest.ini_options]
-pythonpath = "./jupyter_tikz"
+#pythonpath = "./jupyter_tikz"
 markers = [
     "needs_latex: marks tests that require a LaTeX environment with the TikZ package installed.",
     "needs_pdftocairo: marks tests that require `pdftocairo` (Poppler) installed.",

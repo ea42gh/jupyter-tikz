@@ -3,7 +3,7 @@ __email__ = "lucaslrodri@gmail.com"
 __version__ = "0.1.0"
 
 from .jupyter_tikz import _ARGS, TexDocument, TexFragment, TikZMagics
-from .executor import render_svg, RenderError
+from .executor import render_svg, render_svg_with_artifacts, RenderArtifacts, RenderError
 from .toolchains import Toolchain, TOOLCHAINS
 
 
@@ -13,6 +13,8 @@ def load_ipython_extension(ipython):  # pragma: no cover
 
 __all__ = [
     "render_svg",
+    "render_svg_with_artifacts",
+    "RenderArtifacts",
     "RenderError",
     "Toolchain",
     "TOOLCHAINS",
@@ -20,4 +22,3 @@ __all__ = [
     "TexFragment",
     "TikZMagics",
 ]
-

@@ -5,6 +5,16 @@ import re
 import subprocess
 import sys
 from hashlib import md5
+
+
+def code_hash(code: str) -> str:
+    """Return the md5 hex digest used to key TeX compilation artifacts."""
+    return md5(code.encode()).hexdigest()
+
+
+# Convenience constant used by tests that parametrize over a stable, known input.
+ANY_CODE_HASH = code_hash("any code")
+
 from pathlib import Path
 from string import Template
 from textwrap import dedent, indent
@@ -75,7 +85,7 @@ class TexDocument:
     def _hex_hash(self) -> str:
         """Returns the md5 hash value of the full LaTeX code."""
         # return f"{abs(hash(self.full_latex)):x}"
-        return md5(self.full_latex.encode()).hexdigest()
+        return code_hash(self.full_latex)
 
     def __repr__(self) -> str:
         """Returns a compact string representation of the object."""

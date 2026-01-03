@@ -256,10 +256,9 @@ def render_svg(
             if not artifacts.returncodes or artifacts.returncodes[-1] != 0:
                 tail = _stderr_tail(artifacts.stderr_path)
                 raise RenderError(
-                    "Toolchain execution failed."
-                     f"Artifacts kept at: {workdir}."
-                     f"Last returncode: {artifacts.returncodes[-1] if artifacts.returncodes else 'n/a'}.\n"
-                     "---- stderr tail ----\n"
+                    "Toolchain execution failed.\n"
+                    f"Last returncode: {artifacts.returncodes[-1] if artifacts.returncodes else 'n/a'}.\n"
+                    "---- stderr tail ----\n"
                      f"{tail}"
                 )
 

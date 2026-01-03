@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import subprocess
 import tempfile
+import os
+import shutil
 from dataclasses import dataclass
 
 
@@ -206,18 +208,60 @@ def render_svg(
     output_stem: str = "output",
 ) -> str:
     """
-    Compile TeX and return SVG text (default: ephemeral temp build dir).
+    Compile TeX and return SVG text.
+
+    Diagnostics
+    -----------
+    If compilation/conversion fails, the raised :class:`RenderError` will include a
+    short tail of stderr. For deeper debugging, set ``JUPYTER_TIKZ_KEEP_TEMP=1`` to
+    keep the temporary build directory; the exception message will include the path.
     """
     if toolchain_name not in TOOLCHAINS:
         raise ValueError(f"Unknown toolchain: {toolchain_name}")
 
     tc = TOOLCHAINS[toolchain_name]
+    keep = os.environ.get("JUPYTER_TIKZ_KEEP_TEMP") == "1"
 
-    with tempfile.TemporaryDirectory() as tmp:
-        artifacts = _run_toolchain_in_dir(tc, tex_source, Path(tmp), output_stem)
+    def _stderr_tail(stderr_path: Path, limit_chars: int = 4000) -> str:
+        try:
+            txt = stderr_path.read_text(errors="replace")
+        except Exception:
+            return "<stderr unavailable>"
+        if len(txt) <= limit_chars:
+            return txt
+        return txt[-limit_chars:]
 
-        if not artifacts.returncodes or artifacts.returncodes[-1] != 0:
-            raise RenderError("Toolchain execution failed")
+    if keep:
+        workdir = Path(tempfile.mkdtemp(prefix="jupyter_tikz_"))
+        try:
+            artifacts = _run_toolchain_in_dir(tc, tex_source, workdir, output_stem)
+            if not artifacts.returncodes or artifacts.returncodes[-1] != 0:
+                tail = _stderr_tail(artifacts.stderr_path)
+                raise RenderError(
+                    "Toolchain execution failed. "
+                    f"Artifacts kept at: {workdir}. "
+                    f"Last returncode: {artifacts.returncodes[-1] if artifacts.returncodes else 'n/a'}.
+"
+                    f"---- stderr tail ----
+{tail}"
+                )
+            return artifacts.read_svg()
+        except Exception:
+            # Do not delete workdir when keep=1
+            raise
+    else:
+        with tempfile.TemporaryDirectory() as tmp:
+            artifacts = _run_toolchain_in_dir(tc, tex_source, Path(tmp), output_stem)
 
-        return artifacts.read_svg()
+            if not artifacts.returncodes or artifacts.returncodes[-1] != 0:
+                tail = _stderr_tail(artifacts.stderr_path)
+                raise RenderError(
+                    "Toolchain execution failed."
+                     f"Artifacts kept at: {workdir}."
+                     f"Last returncode: {artifacts.returncodes[-1] if artifacts.returncodes else 'n/a'}.\n"
+                     "---- stderr tail ----\n"
+                     f"{tail}"
+                )
+
+            return artifacts.read_svg()
 

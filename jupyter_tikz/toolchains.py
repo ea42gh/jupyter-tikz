@@ -13,20 +13,6 @@ class Toolchain:
 
 # --- Core toolchains ---
 
-# Notes
-# -----
-# These toolchains intentionally model *rendering pipelines*, not user-facing
-# flags. Higher-level callers (e.g., matrixlayout) should select by name.
-#
-# The registry includes the legacy combinations commonly encountered in
-# itikz-era notebooks:
-# - pdftex + pdftocairo
-# - pdftex + pdf2svg
-# - pdftex + dvisvgm
-# - xelatex + pdftocairo
-# - xelatex + pdf2svg
-# - xelatex + dvisvgm
-
 PDFTEX_PDFTOCAIRO = Toolchain(
     name="pdftex_pdftocairo",
     latex_cmd=["latexmk", "-pdf", "-interaction=nonstopmode"],

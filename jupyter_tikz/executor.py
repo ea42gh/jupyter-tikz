@@ -13,7 +13,10 @@ from typing import List, Literal
 
 from jupyter_tikz.crop import crop_svg_inplace
 from jupyter_tikz.svg_box import Padding, normalize_padding, apply_padding_to_svg_file, apply_padding_to_svg_text
+from jupyter_tikz.canvas_frame import apply_canvas_frame_to_svg_file, apply_canvas_frame_to_svg_text
 from jupyter_tikz.toolchains import Toolchain, TOOLCHAINS
+
+#from typing import Sequence
 
 # =======================================================================================================
 def build_commands(
@@ -56,47 +59,9 @@ def build_commands(
     elif toolchain.needs_dvi:
         dvi = f"{output_stem}.dvi"
         svg = f"{output_stem}.svg"
-        if svg_cmd and svg_cmd[0] == "dvisvgm":
-            # latexmk can produce multi-page DVI; render only the first page.
-            # Keep positional arguments as "... <input.dvi> <output.svg>" to satisfy build_commands tests.
-            cmds.append(svg_cmd + ["-p", "1", dvi, svg])
-        else:
-            cmds.append(svg_cmd + [dvi, svg])
+        cmds.append(svg_cmd + [dvi, svg])
 
     return cmds
-
-
-# -------------------------------------------------------------------------------------------------------------------
-def _resolve_dvisvgm_output_svg(workdir: Path, output_stem: str) -> Path | None:
-    """dvisvgm often writes <stem>-<page>.svg (e.g., output-1.svg) even when an
-    explicit <stem>.svg is provided. Return a usable SVG path and, if needed,
-    rename the first-page output to <stem>.svg for determinism.
-    """
-    desired = workdir / f"{output_stem}.svg"
-    if desired.exists():
-        return desired
-
-    cand = workdir / f"{output_stem}-1.svg"
-    if cand.exists():
-        try:
-            cand.replace(desired)
-        except Exception:
-            shutil.copyfile(cand, desired)
-        return desired if desired.exists() else cand
-
-    cands = sorted(workdir.glob(f"{output_stem}-*.svg"))
-    if cands:
-        first = cands[0]
-        try:
-            first.replace(desired)
-            return desired
-        except Exception:
-            shutil.copyfile(first, desired)
-            return desired if desired.exists() else first
-
-    return None
-
-
 # -------------------------------------------------------------------------------------------------------------------
 def _run_toolchain_in_dir(
     toolchain: Toolchain,
@@ -108,7 +73,7 @@ def _run_toolchain_in_dir(
     enforce_tight_crop: bool,
     exact_bbox: bool,
     padding: Padding,
-) -> "RenderArtifacts":
+) -> RenderArtifacts:
     workdir.mkdir(parents=True, exist_ok=True)
 
     tex_path = workdir / f"{output_stem}.tex"
@@ -152,10 +117,6 @@ def _run_toolchain_in_dir(
         pdf_path = None
 
     svg_path = workdir / f"{output_stem}.svg"
-    if not svg_path.exists() and toolchain.svg_cmd and toolchain.svg_cmd[0] == "dvisvgm":
-        resolved = _resolve_dvisvgm_output_svg(workdir, output_stem)
-        svg_path = resolved if resolved is not None else svg_path
-
     if svg_path.exists():
         # Tight-crop post-processing is only used for PDF-based converters.
         if enforce_tight_crop and crop_mode == "tight" and (not toolchain.svg_cmd or toolchain.svg_cmd[0] != "dvisvgm"):
@@ -176,8 +137,6 @@ def _run_toolchain_in_dir(
         stderr_path=stderr_path,
         returncodes=returncodes,
     )
-
-
 # -------------------------------------------------------------------------------------------------------------------
 def render_svg_with_artifacts(
     tex_source: str,
@@ -187,8 +146,9 @@ def render_svg_with_artifacts(
     output_stem: str = "output",
     crop: Literal["tight", "page", "none"] | None = None,
     padding=None,
+    frame=None,
     exact_bbox: bool = False,
-) -> "RenderArtifacts":
+) -> RenderArtifacts:
     """
     Compile TeX and keep artifacts in output_dir.
     Returns paths to .tex/.pdf/.svg and captured stdout/stderr.
@@ -213,6 +173,7 @@ def render_svg_with_artifacts(
     )
 
     if not artifacts.returncodes or artifacts.returncodes[-1] != 0:
+        # include last stderr chunk to make failures actionable
         raise RenderError(
             "Toolchain execution failed. See stderr at: "
             f"{artifacts.stderr_path}"
@@ -221,8 +182,10 @@ def render_svg_with_artifacts(
     if artifacts.svg_path is None:
         raise RenderError("SVG output not produced")
 
-    return artifacts
+    if frame and artifacts.svg_path is not None:
+        apply_canvas_frame_to_svg_file(artifacts.svg_path, frame)
 
+    return artifacts
 
 class ExecutionResult:
     def __init__(self, returncodes, stdout, stderr, svg_text):
@@ -230,8 +193,6 @@ class ExecutionResult:
         self.stdout = stdout
         self.stderr = stderr
         self.svg_text = svg_text
-
-
 # -------------------------------------------------------------------------------------------------------------------
 def run_toolchain(
     toolchain: Toolchain,
@@ -240,6 +201,7 @@ def run_toolchain(
     *,
     crop: Literal["tight", "page", "none"] | None = None,
     padding=None,
+    frame=None,
     exact_bbox: bool = False,
 ) -> ExecutionResult:
     returncodes = []
@@ -266,7 +228,7 @@ def run_toolchain(
         for cmd in commands:
             proc = subprocess.run(
                 cmd,
-                cwd=str(workdir),
+                cwd=str(workdir),              # ← str() is correct
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
@@ -279,30 +241,25 @@ def run_toolchain(
                 break
 
         svg_path = workdir / f"{output_stem}.svg"
-        if not svg_path.exists() and toolchain.svg_cmd and toolchain.svg_cmd[0] == "dvisvgm":
-            resolved = _resolve_dvisvgm_output_svg(workdir, output_stem)
-            svg_path = resolved if resolved is not None else svg_path
-
         if svg_path.exists():
             if enforce_tight_crop and crop_mode == "tight" and (not toolchain.svg_cmd or toolchain.svg_cmd[0] != "dvisvgm"):
                 crop_svg_inplace(svg_path)
             if not pad.is_zero():
                 apply_padding_to_svg_file(svg_path, pad)
             svg_text = svg_path.read_text(errors="replace")
+            if frame and svg_text is not None:
+                svg_text = apply_canvas_frame_to_svg_text(svg_text, frame)
 
+    # ← temp directory is cleaned up here, safely
     return ExecutionResult(
         returncodes=returncodes,
         stdout=stdout,
         stderr=stderr,
         svg_text=svg_text,
     )
-
-
 # =======================================================================================================
 class RenderError(RuntimeError):
     pass
-
-
 # -------------------------------------------------------------------------------------------------------------------
 @dataclass(frozen=True)
 class RenderArtifacts:
@@ -315,23 +272,9 @@ class RenderArtifacts:
     returncodes: List[int]
 
     def read_svg(self) -> str:
-        if self.svg_path is not None and self.svg_path.exists():
-            return self.svg_path.read_text(errors="replace")
-
-        # dvisvgm commonly writes <stem>-1.svg; if the expected svg_path was not produced,
-        # try to locate the first-page output in the same directory.
-        if self.svg_path is not None:
-            p = self.svg_path
-            cand1 = p.with_name(f"{p.stem}-1{p.suffix}")
-            if cand1.exists():
-                return cand1.read_text(errors="replace")
-            cands = sorted(p.parent.glob(f"{p.stem}-*{p.suffix}"))
-            if cands:
-                return cands[0].read_text(errors="replace")
-
-        raise RenderError("SVG output not produced")
-
-
+        if self.svg_path is None or not self.svg_path.exists():
+            raise RenderError("SVG output not produced")
+        return self.svg_path.read_text()
 # -------------------------------------------------------------------------------------------------------------------
 def render_svg(
     tex_source: str,
@@ -340,6 +283,7 @@ def render_svg(
     output_stem: str = "output",
     crop: Literal["tight", "page", "none"] | None = None,
     padding=None,
+    frame=None,
     exact_bbox: bool = False,
     cache: bool = True,
 ) -> str:
@@ -378,6 +322,7 @@ def render_svg(
         return _tail_file(stderr_path, limit_chars=limit_chars)
 
     def _latex_log_tail(workdir: Path, limit_chars: int = 8000) -> str:
+        # pdflatex produces <jobname>.log, where jobname is output_stem
         return _tail_file(workdir / f"{output_stem}.log", limit_chars=limit_chars)
 
     if keep:
@@ -405,12 +350,18 @@ def render_svg(
                     "---- latex log tail ----\n"
                     f"{log_tail}"
                 )
-            return artifacts.read_svg()
+            svg = artifacts.read_svg()
+            if frame and artifacts.svg_path is not None:
+                apply_canvas_frame_to_svg_file(artifacts.svg_path, frame)
+                svg = artifacts.read_svg()
+            return svg
         except Exception:
+            # Do not delete workdir when keep=1
             raise
     else:
+        # In-memory cache only applies to the "no kept artifacts" path.
         if cache and pad.is_zero():
-            return _render_base_svg_cached(
+            base = _render_base_svg_cached(
                 tex_source,
                 resolved_toolchain,
                 output_stem=output_stem,
@@ -418,6 +369,9 @@ def render_svg(
                 enforce_tight_crop=enforce_tight_crop,
                 exact_bbox=exact_bbox,
             )
+            if frame:
+                return apply_canvas_frame_to_svg_text(base, frame)
+            return base
         if cache and (not pad.is_zero()):
             base = _render_base_svg_cached(
                 tex_source,
@@ -427,7 +381,10 @@ def render_svg(
                 enforce_tight_crop=enforce_tight_crop,
                 exact_bbox=exact_bbox,
             )
-            return apply_padding_to_svg_text(base, pad)
+            svg = apply_padding_to_svg_text(base, pad)
+            if frame:
+                svg = apply_canvas_frame_to_svg_text(svg, frame)
+            return svg
 
         with tempfile.TemporaryDirectory() as tmp:
             workdir = Path(tmp)
@@ -454,7 +411,11 @@ def render_svg(
                     f"{log_tail}"
                 )
 
-            return artifacts.read_svg()
+            svg = artifacts.read_svg()
+            if frame and artifacts.svg_path is not None:
+                apply_canvas_frame_to_svg_file(artifacts.svg_path, frame)
+                svg = artifacts.read_svg()
+            return svg
 
 
 # ======================================================================================================
@@ -463,6 +424,7 @@ def render_svg(
 _LEGACY_DEFAULT_TOOLCHAIN = "pdftex_pdftocairo"
 
 _DEFAULT_TOOLCHAIN_CANDIDATES: tuple[str, ...] = (
+    # Keep legacy behaviour stable unless the user explicitly opts into "fast defaults".
     "pdftex_pdftocairo",
     "pdftex_pdf2svg",
     "pdftex_dvisvgm",
@@ -490,6 +452,7 @@ def set_default_toolchain_name(toolchain_name: str | None) -> None:
     """
     global _DEFAULT_TOOLCHAIN_OVERRIDE
     _DEFAULT_TOOLCHAIN_OVERRIDE = toolchain_name
+
 
 
 def resolve_toolchain_name(toolchain_name: str | None) -> str:
@@ -523,7 +486,10 @@ def resolve_toolchain_name(toolchain_name: str | None) -> str:
             continue
         return cand
 
+    # Last resort: stable fallback.
     return next(iter(TOOLCHAINS.keys()))
+
+
 
 
 def resolve_crop_policy(
@@ -532,7 +498,16 @@ def resolve_crop_policy(
 ) -> tuple[Literal["tight", "page", "none"], bool]:
     """Resolve crop mode and whether to enforce tight-cropping.
 
-    Defaults: crop=None -> mode="tight" to preserve historical outputs.
+    Semantics
+    ---------
+    - For *dvisvgm* toolchains, tight/page/none are implemented via dvisvgm flags;
+      no Inkscape-based enforcement is needed (enforce=False).
+    - For PDF->SVG toolchains (pdftocairo/pdf2svg), tight-cropping is enforced via
+      Inkscape only when ``mode == "tight"`` and Inkscape is available.
+
+    Defaults
+    --------
+    ``crop=None`` defaults to ``mode="tight"`` to preserve historical outputs.
     """
     if crop in ("tight", "page", "none"):
         mode = crop
@@ -543,6 +518,7 @@ def resolve_crop_policy(
     if is_dvisvgm:
         return (mode, False)
 
+    # PDF toolchains: only tight is enforced (via Inkscape).
     return (mode, mode == "tight")
 
 
@@ -550,9 +526,14 @@ def resolve_crop_mode(
     crop: Literal["tight", "page", "none"] | None,
     toolchain: Toolchain,
 ) -> Literal["tight", "page", "none"]:
+    """Resolve crop mode only.
+
+    This preserves the legacy default of returning ``"tight"`` when crop is not
+    specified, while allowing the execution layer to distinguish between a
+    default (soft) tight-crop and an explicit request (enforced) tight-crop.
+    """
     crop_mode, _enforce = resolve_crop_policy(crop, toolchain)
     return crop_mode
-
 
 _CACHE_MAXSIZE = int(os.environ.get("JUPYTER_TIKZ_CACHE_SIZE", "64"))
 _CACHE: "OrderedDict[tuple[str, str, str, bool, bool, bool, str], str]" = OrderedDict()
@@ -573,7 +554,11 @@ def _render_base_svg_cached(
     enforce_tight_crop: bool,
     exact_bbox: bool,
 ) -> str:
-    """Cached render of SVG without padding."""
+    """Cached render of SVG without padding.
+
+    Padding is intentionally excluded from the cache key so that callers can
+    apply arbitrary per-side padding cheaply without re-running LaTeX.
+    """
     tc = TOOLCHAINS[toolchain_name]
     inkscape_variant = bool(
         enforce_tight_crop
@@ -629,6 +614,7 @@ def _render_base_svg_uncached(
             padding=Padding(),
         )
         if not artifacts.returncodes or artifacts.returncodes[-1] != 0:
+            # Re-use the same error formatting logic as render_svg by raising.
             stderr_tail = artifacts.stderr_path.read_text(errors="replace")[-4000:]
             raise RenderError(
                 "Toolchain execution failed.\n"
@@ -637,4 +623,3 @@ def _render_base_svg_uncached(
                 f"{stderr_tail}"
             )
         return artifacts.read_svg()
-

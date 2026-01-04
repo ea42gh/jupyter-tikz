@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -19,6 +20,33 @@ from jupyter_tikz.toolchains import Toolchain, TOOLCHAINS
 #from typing import Sequence
 
 # =======================================================================================================
+_XML_DECL_RE = re.compile(r"^\ufeff?\s*<\?xml[^>]*\?>\s*", re.IGNORECASE | re.DOTALL)
+_DOCTYPE_RE = re.compile(r"^\s*<!DOCTYPE[^>]*>\s*", re.IGNORECASE | re.DOTALL)
+
+
+def strip_svg_xml_declaration(svg_text: str) -> str:
+    """Strip optional XML prolog / doctype from an SVG string.
+
+    Many SVG converters emit an XML declaration, e.g.::
+
+        <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+
+    That prolog is legal XML but can break consumers that expect an inline
+    ``<svg ...>`` root (e.g. Panel's ``pn.pane.SVG``). Removing it is safe for
+    typical inline usage and does not alter the SVG element tree.
+
+    This function is intentionally conservative: it only strips leading prolog
+    constructs and leaves the rest of the document untouched.
+    """
+
+    if not svg_text:
+        return svg_text
+
+    out = _XML_DECL_RE.sub("", svg_text, count=1)
+    # Some converters also emit a doctype line; strip it if present.
+    out = _DOCTYPE_RE.sub("", out, count=1)
+    return out.lstrip("\n")
+
 def build_commands(
     toolchain: Toolchain,
     tex_file: Path,
@@ -286,6 +314,7 @@ def render_svg(
     frame=None,
     exact_bbox: bool = False,
     cache: bool = True,
+    strip_xml_declaration: bool = True,
 ) -> str:
     """
     Compile TeX and return SVG text.
@@ -306,6 +335,9 @@ def render_svg(
     keep = os.environ.get("JUPYTER_TIKZ_KEEP_TEMP") == "1"
     crop_mode, enforce_tight_crop = resolve_crop_policy(crop, tc)
     pad = normalize_padding(padding)
+
+    def _maybe_strip(svg_text: str) -> str:
+        return strip_svg_xml_declaration(svg_text) if strip_xml_declaration else svg_text
 
     def _tail_file(path: Path, *, limit_chars: int = 8000) -> str:
         try:
@@ -354,7 +386,7 @@ def render_svg(
             if frame and artifacts.svg_path is not None:
                 apply_canvas_frame_to_svg_file(artifacts.svg_path, frame)
                 svg = artifacts.read_svg()
-            return svg
+            return _maybe_strip(svg)
         except Exception:
             # Do not delete workdir when keep=1
             raise
@@ -370,8 +402,8 @@ def render_svg(
                 exact_bbox=exact_bbox,
             )
             if frame:
-                return apply_canvas_frame_to_svg_text(base, frame)
-            return base
+                base = apply_canvas_frame_to_svg_text(base, frame)
+            return _maybe_strip(base)
         if cache and (not pad.is_zero()):
             base = _render_base_svg_cached(
                 tex_source,
@@ -384,7 +416,7 @@ def render_svg(
             svg = apply_padding_to_svg_text(base, pad)
             if frame:
                 svg = apply_canvas_frame_to_svg_text(svg, frame)
-            return svg
+            return _maybe_strip(svg)
 
         with tempfile.TemporaryDirectory() as tmp:
             workdir = Path(tmp)
@@ -415,7 +447,7 @@ def render_svg(
             if frame and artifacts.svg_path is not None:
                 apply_canvas_frame_to_svg_file(artifacts.svg_path, frame)
                 svg = artifacts.read_svg()
-            return svg
+            return _maybe_strip(svg)
 
 
 # ======================================================================================================

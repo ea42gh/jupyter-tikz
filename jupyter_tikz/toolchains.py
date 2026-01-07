@@ -16,6 +16,10 @@ class Toolchain:
 PDFTEX_PDFTOCAIRO = Toolchain(
     name="pdftex_pdftocairo",
     latex_cmd=["latexmk", "-pdf", "-interaction=nonstopmode"],
+    # NOTE: Some pdftocairo builds emit numbered outputs (e.g. output-1.svg)
+    # when given a prefix; we always pass an explicit output filename
+    # (output.svg) via build_commands, and the executor also contains a
+    # suffix-tolerant finder as a fallback.
     svg_cmd=["pdftocairo", "-svg"],
 )
 
@@ -36,6 +40,7 @@ PDFTEX_DVISVGM = Toolchain(
 XELATEX_PDFTOCAIRO = Toolchain(
     name="xelatex_pdftocairo",
     latex_cmd=["latexmk", "-xelatex", "-interaction=nonstopmode"],
+    # See PDFTEX_PDFTOCAIRO note on output naming.
     svg_cmd=["pdftocairo", "-svg"],
 )
 

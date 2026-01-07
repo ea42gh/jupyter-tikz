@@ -59,3 +59,8 @@ def test_build_commands_wires_expected_inputs(name: str, expected_suffix: str, t
     else:
         assert svg_cmd[-2].endswith(expected_suffix)
         assert svg_cmd[-1].endswith(".svg")
+        # For pdftocairo, we rely on passing an explicit output filename
+        # (job.svg) rather than a prefix. Some pdftocairo builds reject
+        # -singlefile for SVG outputs.
+        if svg_cmd[0] == "pdftocairo":
+            assert "-singlefile" not in svg_cmd

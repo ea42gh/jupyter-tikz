@@ -1,4 +1,5 @@
 import os
+import shutil
 import subprocess
 from hashlib import md5
 from pathlib import Path
@@ -559,19 +560,14 @@ def test_run_latex_rasterize_with_dpi(monkeypatch, tmpdir, dpi):
 
 @pytest.mark.needs_latex
 @pytest.mark.needs_pdftocairo
-@pytest.mark.skipif(
-    not os.path.exists(
-        os.path.expandvars("$LOCALAPPDATA/Poppler/Library/bin/pdftocairo.exe")
-    ),
-    reason="pdftocairo not found",
-)
 def test_run_latex_with_custom_pdftocairo_path(monkeypatch, tmpdir):
     # Arrange
     monkeypatch.chdir(tmpdir)
-    # IMPORTANT: Modify this path to the path of pdftocairo.exe in your system
-    pdftocairo_path = os.path.expandvars(
-        "$LOCALAPPDATA/Poppler/Library/bin/pdftocairo.exe"
-    )
+    # Resolve pdftocairo from PATH and pass it through the custom-path override.
+    # This makes the test cross-platform and avoids hardcoded Windows paths.
+    pdftocairo_path = shutil.which("pdftocairo")
+    if pdftocairo_path is None:
+        pytest.skip("pdftocairo not found")
     monkeypatch.setenv("JUPYTER_TIKZ_PDFTOCAIROPATH", pdftocairo_path)
 
     # Act

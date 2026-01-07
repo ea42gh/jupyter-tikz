@@ -83,14 +83,118 @@ def build_commands(
     if toolchain.needs_pdf:
         pdf = f"{output_stem}.pdf"
         svg = f"{output_stem}.svg"
+        # pdf2svg's page argument is optional. We intentionally do not pass it,
+        # so the converter command remains the simple, conventional 2-arg form:
+        #   pdf2svg <input.pdf> <output.svg>
+        # This also keeps the command shape consistent with other PDF-based
+        # converters and with tests that validate command wiring.
         cmds.append(svg_cmd + [pdf, svg])
     elif toolchain.needs_dvi:
         dvi = f"{output_stem}.dvi"
         svg = f"{output_stem}.svg"
-        cmds.append(svg_cmd + [dvi, svg])
+        # dvisvgm supports explicit output naming via --output. Using it avoids
+        # relying on dvisvgm's default naming conventions (e.g. appending page
+        # numbers when a DVI contains more than one page).
+        if svg_cmd and svg_cmd[0] == "dvisvgm":
+            cmds.append(svg_cmd + ["--page=1", f"--output={svg}", dvi])
+        else:
+            cmds.append(svg_cmd + [dvi, svg])
 
     return cmds
+
+
+def _find_svg_output_path(workdir: Path, output_stem: str) -> Path | None:
+    """Locate the SVG output produced by the conversion step.
+
+    Most converters produce exactly ``{output_stem}.svg``. Some tool versions
+    may emit numbered outputs (e.g. ``{output_stem}-1.svg``) when they treat
+    the input as multi-page.
+
+    This helper is a fallback used only when the canonical output name isn't
+    present.
+    """
+
+    canonical = workdir / f"{output_stem}.svg"
+    if canonical.exists():
+        return canonical
+
+    # Common fallback patterns.
+    candidates = sorted(workdir.glob(f"{output_stem}-*.svg"))
+    if candidates:
+        return candidates[0]
+
+    return None
 # -------------------------------------------------------------------------------------------------------------------
+
+
+def _persist_failure_artifacts(workdir: Path) -> Path:
+    """Copy a temporary workdir to a persistent location for debugging.
+
+    This is used on failures when the caller did not request kept artifacts.
+    """
+    dest = Path(tempfile.mkdtemp(prefix="jupyter_tikz_fail_"))
+    try:
+        shutil.copytree(workdir, dest, dirs_exist_ok=True)
+    except Exception:
+        # Best-effort fallback; do not mask the original error.
+        try:
+            for p in workdir.rglob("*"):
+                rel = p.relative_to(workdir)
+                target = dest / rel
+                if p.is_dir():
+                    target.mkdir(parents=True, exist_ok=True)
+                else:
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(p, target)
+        except Exception:
+            pass
+    return dest
+
+def _resolve_artifacts_target(
+    artifacts_path: str | Path | bool,
+    *,
+    output_stem: str,
+    tex_source: str,
+) -> tuple[Path, str]:
+    """Resolve an artifacts_path value into (workdir, output_stem).
+
+    Semantics
+    ---------
+    * artifacts_path=True:
+        Keep artifacts in a newly-created temp directory; return that directory.
+    * artifacts_path=<existing directory>:
+        Keep artifacts *in that directory*, using a unique stem derived from the
+        TeX hash to avoid collisions.
+    * artifacts_path=<path-like prefix> (file-like):
+        Treat the value as a path prefix. The parent directory is created and
+        artifacts are written as:
+
+            <parent>/<name>.tex/.pdf/.svg/.log/.stdout.txt/.stderr.txt/...
+
+      This supports both directory targets and file-prefix targets.
+    """
+    if artifacts_path is True:
+        return (Path(tempfile.mkdtemp(prefix="jupyter_tikz_keep_")), output_stem)
+
+    p = Path(str(artifacts_path)).expanduser()
+
+    # If the user passed a filename with an extension, drop it so the stem
+    # controls all artifact names consistently.
+    if p.suffix:
+        p = p.with_suffix("")
+
+    if p.exists() and p.is_dir():
+        h8 = md5(tex_source.encode("utf-8")).hexdigest()[:8]
+        stem = f"{output_stem}-{h8}" if output_stem else h8
+        return (p, stem)
+
+    parent = p.parent
+    if str(parent) in ("", "."):
+        parent = Path.cwd()
+    parent.mkdir(parents=True, exist_ok=True)
+    return (parent, p.name)
+
+
 def _run_toolchain_in_dir(
     toolchain: Toolchain,
     tex_source: str,
@@ -144,8 +248,18 @@ def _run_toolchain_in_dir(
     if not pdf_path.exists():
         pdf_path = None
 
-    svg_path = workdir / f"{output_stem}.svg"
-    if svg_path.exists():
+    svg_path = _find_svg_output_path(workdir, output_stem)
+    if svg_path is not None and svg_path.exists():
+        # Normalize numbered outputs (e.g. output-1.svg) to output.svg for
+        # consistent artifact paths.
+        canonical = workdir / f"{output_stem}.svg"
+        if svg_path != canonical:
+            try:
+                svg_path.replace(canonical)
+                svg_path = canonical
+            except Exception:
+                # If renaming fails, proceed with the discovered path.
+                pass
         # Tight-crop post-processing is only used for PDF-based converters.
         if enforce_tight_crop and crop_mode == "tight" and (not toolchain.svg_cmd or toolchain.svg_cmd[0] != "dvisvgm"):
             crop_svg_inplace(svg_path)
@@ -268,8 +382,15 @@ def run_toolchain(
             if proc.returncode != 0:
                 break
 
-        svg_path = workdir / f"{output_stem}.svg"
-        if svg_path.exists():
+        svg_path = _find_svg_output_path(workdir, output_stem)
+        if svg_path is not None and svg_path.exists():
+            canonical = workdir / f"{output_stem}.svg"
+            if svg_path != canonical:
+                try:
+                    svg_path.replace(canonical)
+                    svg_path = canonical
+                except Exception:
+                    pass
             if enforce_tight_crop and crop_mode == "tight" and (not toolchain.svg_cmd or toolchain.svg_cmd[0] != "dvisvgm"):
                 crop_svg_inplace(svg_path)
             if not pad.is_zero():
@@ -315,6 +436,7 @@ def render_svg(
     exact_bbox: bool = False,
     cache: bool = True,
     strip_xml_declaration: bool = True,
+    artifacts_path: str | Path | bool | None = None,
 ) -> str:
     """
     Compile TeX and return SVG text.
@@ -326,15 +448,19 @@ def render_svg(
 
     For deeper debugging, set ``JUPYTER_TIKZ_KEEP_TEMP=1`` to keep the temporary
     build directory; the exception message will include the path.
+
+    To keep intermediate and output files for successful renders, pass
+    ``artifacts_path=...``.
     """
     resolved_toolchain = resolve_toolchain_name(toolchain_name)
     if resolved_toolchain not in TOOLCHAINS:
         raise ValueError(f"Unknown toolchain: {resolved_toolchain}")
 
     tc = TOOLCHAINS[resolved_toolchain]
-    keep = os.environ.get("JUPYTER_TIKZ_KEEP_TEMP") == "1"
+    keep_env = os.environ.get("JUPYTER_TIKZ_KEEP_TEMP") == "1"
     crop_mode, enforce_tight_crop = resolve_crop_policy(crop, tc)
     pad = normalize_padding(padding)
+    jobname = output_stem
 
     def _maybe_strip(svg_text: str) -> str:
         return strip_svg_xml_declaration(svg_text) if strip_xml_declaration else svg_text
@@ -355,9 +481,43 @@ def render_svg(
 
     def _latex_log_tail(workdir: Path, limit_chars: int = 8000) -> str:
         # pdflatex produces <jobname>.log, where jobname is output_stem
-        return _tail_file(workdir / f"{output_stem}.log", limit_chars=limit_chars)
+        return _tail_file(workdir / f"{jobname}.log", limit_chars=limit_chars)
 
-    if keep:
+    if artifacts_path:
+        workdir, jobname = _resolve_artifacts_target(
+            artifacts_path,
+            output_stem=output_stem,
+            tex_source=tex_source,
+        )
+        artifacts = _run_toolchain_in_dir(
+            tc,
+            tex_source,
+            workdir,
+            jobname,
+            crop_mode=crop_mode,
+            enforce_tight_crop=enforce_tight_crop,
+            exact_bbox=exact_bbox,
+            padding=pad,
+        )
+        if not artifacts.returncodes or artifacts.returncodes[-1] != 0:
+            stderr_tail = _stderr_tail(artifacts.stderr_path)
+            log_tail = _latex_log_tail(workdir)
+            raise RenderError(
+                "Toolchain execution failed. "
+                f"Artifacts kept at: {workdir}. "
+                f"Last returncode: {artifacts.returncodes[-1] if artifacts.returncodes else 'n/a'}.\n"
+                "---- stderr tail ----\n"
+                f"{stderr_tail}\n"
+                "---- latex log tail ----\n"
+                f"{log_tail}"
+            )
+        svg = artifacts.read_svg()
+        if frame and artifacts.svg_path is not None:
+            apply_canvas_frame_to_svg_file(artifacts.svg_path, frame)
+            svg = artifacts.read_svg()
+        return _maybe_strip(svg)
+
+    if keep_env:
         workdir = Path(tempfile.mkdtemp(prefix="jupyter_tikz_"))
         try:
             artifacts = _run_toolchain_in_dir(
@@ -388,7 +548,7 @@ def render_svg(
                 svg = artifacts.read_svg()
             return _maybe_strip(svg)
         except Exception:
-            # Do not delete workdir when keep=1
+            # Do not delete workdir when keep_env=1
             raise
     else:
         # In-memory cache only applies to the "no kept artifacts" path.
@@ -432,16 +592,19 @@ def render_svg(
             )
 
             if not artifacts.returncodes or artifacts.returncodes[-1] != 0:
+                kept = _persist_failure_artifacts(workdir)
                 stderr_tail = _stderr_tail(artifacts.stderr_path)
                 log_tail = _latex_log_tail(workdir)
                 raise RenderError(
-                    "Toolchain execution failed.\n"
+                    "Toolchain execution failed. "
+                    f"Artifacts kept at: {kept}.\n"
                     f"Last returncode: {artifacts.returncodes[-1] if artifacts.returncodes else 'n/a'}.\n"
                     "---- stderr tail ----\n"
                     f"{stderr_tail}\n"
                     "---- latex log tail ----\n"
                     f"{log_tail}"
                 )
+
 
             svg = artifacts.read_svg()
             if frame and artifacts.svg_path is not None:
@@ -646,12 +809,29 @@ def _render_base_svg_uncached(
             padding=Padding(),
         )
         if not artifacts.returncodes or artifacts.returncodes[-1] != 0:
-            # Re-use the same error formatting logic as render_svg by raising.
+            kept = _persist_failure_artifacts(workdir)
+
             stderr_tail = artifacts.stderr_path.read_text(errors="replace")[-4000:]
+
+            log_path = workdir / f"{jobname}.log"
+            try:
+                if not log_path.exists():
+                    log_tail = f"<missing: {log_path.name}>"
+                else:
+                    log_tail = log_path.read_text(errors="replace")[-8000:]
+            except Exception:
+                log_tail = f"<unreadable: {log_path.name}>"
+
             raise RenderError(
-                "Toolchain execution failed.\n"
+                "Toolchain execution failed. "
+                f"Artifacts kept at: {kept}.\n"
                 f"Last returncode: {artifacts.returncodes[-1] if artifacts.returncodes else 'n/a'}.\n"
                 "---- stderr tail ----\n"
-                f"{stderr_tail}"
+                f"{stderr_tail}\n"
+                "---- latex log tail ----\n"
+                f"{log_tail}"
             )
         return artifacts.read_svg()
+
+
+

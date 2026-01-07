@@ -50,5 +50,12 @@ def test_build_commands_wires_expected_inputs(name: str, expected_suffix: str, t
     # LaTeX command should target the .tex input by filename (run in workdir).
     assert latex_cmd[-1] == tex_file.name
     # Conversion step should take either job.pdf or job.dvi.
-    assert svg_cmd[-2].endswith(expected_suffix)
-    assert svg_cmd[-1].endswith(".svg")
+    # For dvisvgm, we pass the output file via --output=... and keep only the
+    # DVI as a positional argument.
+    if svg_cmd[0] == "dvisvgm":
+        assert svg_cmd[-1].endswith(expected_suffix)
+        assert any(arg.startswith("--output=") and arg.endswith("job.svg") for arg in svg_cmd)
+        assert any(arg.startswith("--page=") for arg in svg_cmd)
+    else:
+        assert svg_cmd[-2].endswith(expected_suffix)
+        assert svg_cmd[-1].endswith(".svg")

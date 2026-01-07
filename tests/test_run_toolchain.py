@@ -1,3 +1,4 @@
+import os
 import shutil
 import pytest
 
@@ -9,8 +10,9 @@ from jupyter_tikz.executor import run_toolchain
 def test_run_toolchain_basic_pdftocairo():
     if shutil.which("latexmk") is None:
         pytest.skip("latexmk not installed")
-    if shutil.which("pdftocairo") is None:
-        pytest.skip("pdftocairo not installed")
+    pdftocairo = os.environ.get("JUPYTER_TIKZ_PDFTOCAIROPATH") or "pdftocairo"
+    if shutil.which(pdftocairo) is None:
+        pytest.skip(f"pdftocairo not found: {pdftocairo!r}")
 
     tex = r"""
     \documentclass{standalone}

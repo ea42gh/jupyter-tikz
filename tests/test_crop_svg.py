@@ -1,3 +1,4 @@
+import os
 import shutil
 import pytest
 
@@ -8,8 +9,9 @@ from jupyter_tikz.executor import render_svg
 def test_render_svg_with_cropping():
     if shutil.which("latexmk") is None:
         pytest.skip("latexmk not installed")
-    if shutil.which("pdftocairo") is None:
-        pytest.skip("pdftocairo not installed")
+    pdftocairo = os.environ.get("JUPYTER_TIKZ_PDFTOCAIROPATH") or "pdftocairo"
+    if shutil.which(pdftocairo) is None:
+        pytest.skip(f"pdftocairo not found: {pdftocairo!r}")
     if shutil.which("inkscape") is None:
         pytest.skip("inkscape not installed")
 

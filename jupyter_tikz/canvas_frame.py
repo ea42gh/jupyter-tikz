@@ -88,6 +88,8 @@ def normalize_canvas_frame(frame: CanvasFrameSpec) -> CanvasFrame | None:
     """Normalize `frame` input into a CanvasFrame object, or None if disabled."""
     if not frame:
         return None
+    if isinstance(frame, CanvasFrame):
+        return frame
     if frame is True:
         return CanvasFrame()
     if isinstance(frame, Mapping):

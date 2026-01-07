@@ -345,6 +345,7 @@ def run_toolchain(
     padding=None,
     frame=None,
     exact_bbox: bool = False,
+    strip_xml_declaration: bool = True,
 ) -> ExecutionResult:
     returncodes = []
     stdout = []
@@ -398,6 +399,8 @@ def run_toolchain(
             svg_text = svg_path.read_text(errors="replace")
             if frame and svg_text is not None:
                 svg_text = apply_canvas_frame_to_svg_text(svg_text, frame)
+            if strip_xml_declaration and svg_text is not None:
+                svg_text = strip_svg_xml_declaration(svg_text)
 
     # ← temp directory is cleaned up here, safely
     return ExecutionResult(
@@ -420,10 +423,22 @@ class RenderArtifacts:
     stderr_path: Path
     returncodes: List[int]
 
-    def read_svg(self) -> str:
+    def read_svg(self, *, strip_xml_declaration: bool = True) -> str:
+        """Read the rendered SVG.
+
+        By default we strip an optional leading XML declaration / doctype.
+        While those prologs are valid XML, they can break consumers that expect
+        an inline ``<svg ...>`` root element (e.g. Panel's ``pn.pane.SVG``).
+
+        The on-disk artifact is not modified; only the returned string is
+        normalized.
+        """
         if self.svg_path is None or not self.svg_path.exists():
             raise RenderError("SVG output not produced")
-        return self.svg_path.read_text()
+        txt = self.svg_path.read_text(errors="replace")
+        if strip_xml_declaration:
+            txt = strip_svg_xml_declaration(txt)
+        return txt
 # -------------------------------------------------------------------------------------------------------------------
 def render_svg(
     tex_source: str,

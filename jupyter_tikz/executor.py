@@ -617,6 +617,18 @@ _FAST_DEFAULT_TOOLCHAIN_CANDIDATES: tuple[str, ...] = (
 _DEFAULT_TOOLCHAIN_OVERRIDE: str | None = None
 
 
+def _env_truthy(name: str) -> bool:
+    """Return True if an environment variable is set to a truthy value.
+
+    Accepted truthy values (case-insensitive): 1, true, yes, on.
+    """
+    v = os.environ.get(name)
+    if v is None:
+        return False
+    return v.strip().lower() in {"1", "true", "yes", "on"}
+
+
+
 def set_default_toolchain_name(toolchain_name: str | None) -> None:
     """Set a process-wide default toolchain name (no environment variables required).
 
@@ -647,7 +659,7 @@ def resolve_toolchain_name(toolchain_name: str | None) -> str:
     if env:
         return env
 
-    candidates = _DEFAULT_TOOLCHAIN_CANDIDATES
+    candidates = _FAST_DEFAULT_TOOLCHAIN_CANDIDATES if _env_truthy("JUPYTER_TIKZ_FAST_DEFAULTS") else _DEFAULT_TOOLCHAIN_CANDIDATES
     for cand in candidates:
         tc = TOOLCHAINS.get(cand)
         if not tc:

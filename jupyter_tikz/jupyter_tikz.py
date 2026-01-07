@@ -201,7 +201,9 @@ class TexDocument:
                 tex_command += f" {tex_args}"
             tex_command += f" {tex_path}"
 
-            res = self._run_command(tex_command, full_err=full_err)
+            # Pass `full_err` positionally so call sites are easy to spy on in
+            # tests (and consistent with the historical API shape).
+            res = self._run_command(tex_command, full_err)
             if res != 0:
                 self._clearup_latex_garbage(keep_temp)
                 return None
@@ -225,7 +227,7 @@ class TexDocument:
                 if not rasterize
                 else f" {tex_path.parent / tex_path.stem}"
             )
-            res = self._run_command(pdftocairo_command, full_err=full_err)
+            res = self._run_command(pdftocairo_command, full_err)
 
             if res != 0:
                 self._clearup_latex_garbage(keep_temp)

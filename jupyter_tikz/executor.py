@@ -315,10 +315,20 @@ def render_svg_with_artifacts(
     )
 
     if not artifacts.returncodes or artifacts.returncodes[-1] != 0:
-        # include last stderr chunk to make failures actionable
+        # For callers that keep artifacts, include a small diagnostics tail in
+        # the exception message so notebook users don't have to open files.
+        last_rc = artifacts.returncodes[-1] if artifacts.returncodes else "n/a"
+        stderr_tail = artifacts.read_stderr_tail()
+        log_tail = artifacts.read_latex_log_tail()
         raise RenderError(
-            "Toolchain execution failed. See stderr at: "
-            f"{artifacts.stderr_path}"
+            "Toolchain execution failed. "
+            f"Artifacts kept at: {artifacts.workdir}. "
+            f"Last returncode: {last_rc}.\n"
+            f"See stderr at: {artifacts.stderr_path}.\n"
+            "---- stderr tail ----\n"
+            f"{stderr_tail}\n"
+            "---- latex log tail ----\n"
+            f"{log_tail}"
         )
 
     if artifacts.svg_path is None:
@@ -422,6 +432,27 @@ class RenderArtifacts:
     stdout_path: Path
     stderr_path: Path
     returncodes: List[int]
+
+    def _tail_file(self, path: Path, *, limit_chars: int) -> str:
+        """Read a file and return only the last ``limit_chars`` characters."""
+        try:
+            if not path.exists():
+                return f"<missing: {path.name}>"
+            txt = path.read_text(errors="replace")
+        except Exception:
+            return f"<unreadable: {path.name}>"
+        if len(txt) <= limit_chars:
+            return txt
+        return txt[-limit_chars:]
+
+    def read_stderr_tail(self, *, limit_chars: int = 4000) -> str:
+        """Return a short tail of stderr for diagnostics."""
+        return self._tail_file(self.stderr_path, limit_chars=limit_chars)
+
+    def read_latex_log_tail(self, *, limit_chars: int = 8000) -> str:
+        """Return a short tail of the LaTeX log for diagnostics."""
+        jobname = self.tex_path.stem
+        return self._tail_file(self.workdir / f"{jobname}.log", limit_chars=limit_chars)
 
     def read_svg(self, *, strip_xml_declaration: bool = True) -> str:
         """Read the rendered SVG.

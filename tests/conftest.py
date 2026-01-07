@@ -14,11 +14,31 @@ The gating is *opt-out* (tests run when the relevant binaries are available).
 
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
 from hashlib import md5
+from pathlib import Path
 from typing import Any, Optional
 
 import pytest
+
+# ---------------------------------------------------------------------------
+# Ensure we import the *local checkout* of `jupyter_tikz`.
+#
+# Pytest's `--import-mode=importlib` can change how sys.path is constructed,
+# and many developers also have an older `jupyter_tikz` installed in
+# site-packages. Without this, test collection can accidentally import the
+# wrong package and fail with confusing ImportErrors.
+#
+# We insert the package root (the directory that contains the `jupyter_tikz/`
+# package directory) at the front of sys.path.
+# ---------------------------------------------------------------------------
+
+_PKG_ROOT = Path(__file__).resolve().parents[1]
+if str(_PKG_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PKG_ROOT))
+
+from jupyter_tikz import TexDocument
 
 from jupyter_tikz import TexDocument
 

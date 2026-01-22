@@ -62,7 +62,8 @@ Explore additional resources and related links for this project:
 <div class="grid">
  {% for href, icon, text in [
   ("https://pypi.org/project/jupyter-tikz/", "python", "<strong>PyPI</strong> page"),
-  ("https://github.com/lucaslrodri/jupyter-tikz/blob/main/notebooks/GettingStarted.ipynb", "jupyter", "Getting Started <strong>notebook</strong>"),
+  ("notebooks/GettingStarted.ipynb", "jupyter", "Getting Started <strong>notebook</strong>"),
+  ("notebooks/Enhancements.ipynb", "jupyter", "Enhanced capabilities <strong>notebook</strong>"),
   ("https://github.com/lucaslrodri/jupyter-tikz/", "github", "<strong>Source code</strong> in Github"),
   ("https://github.com/lucaslrodri/jupyter-tikz/issues/", "issues", "Github <strong>issues</strong> page")
  ] %}

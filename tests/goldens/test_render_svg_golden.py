@@ -3,6 +3,7 @@ import pytest
 from pathlib import Path
 
 from jupyter_tikz import render_svg
+from jupyter_tikz.executor import resolve_toolchain_name
 from jupyter_tikz.svg_normalize import normalize_svg
 
 # << DBG
@@ -24,7 +25,8 @@ def test_render_svg_basic_golden():
     \end{document}
     """
 
-    svg = normalize_svg(render_svg(tex))
+    toolchain = resolve_toolchain_name(None)
+    svg = normalize_svg(render_svg(tex, toolchain_name=toolchain))
 
     golden = Path(__file__).parent / "basic_text.svg"
     expected = normalize_svg(golden.read_text())
@@ -42,4 +44,3 @@ def test_render_svg_basic_golden():
     # DBG >>
 
     assert svg == expected
-

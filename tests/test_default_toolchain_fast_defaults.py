@@ -57,3 +57,14 @@ def test_programmatic_override_beats_env_and_fast_defaults(monkeypatch):
         assert ex.resolve_toolchain_name(None) == "xelatex_pdftocairo"
     finally:
         ex.set_default_toolchain_name(None)
+
+
+def test_resolve_toolchain_name_fallbacks_to_first_registered(monkeypatch):
+    import jupyter_tikz.executor as ex
+
+    monkeypatch.setattr(ex.shutil, "which", _fake_which(set()))
+    monkeypatch.delenv("JUPYTER_TIKZ_FAST_DEFAULTS", raising=False)
+    monkeypatch.delenv("JUPYTER_TIKZ_DEFAULT_TOOLCHAIN", raising=False)
+
+    ex.set_default_toolchain_name(None)
+    assert ex.resolve_toolchain_name(None) == next(iter(ex.TOOLCHAINS.keys()))

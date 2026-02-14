@@ -17,7 +17,7 @@ def test_render_svg_with_artifacts_canonicalizes_page_suffix(monkeypatch, tmp_pa
 
     import subprocess
 
-    def fake_run(cmd, cwd, stdout, stderr, text):
+    def fake_run(cmd, cwd, env, stdout, stderr, text):
         workdir = Path(cwd)
         if cmd and cmd[0] == "latexmk":
             # Simulate latexmk producing the intermediate PDF.

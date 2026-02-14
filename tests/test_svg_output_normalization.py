@@ -65,7 +65,7 @@ def test_run_toolchain_strip_xml_declaration_toggle(monkeypatch):
             self.stdout = ""
             self.stderr = ""
 
-    def fake_run(cmd, cwd, stdout, stderr, text):
+    def fake_run(cmd, cwd, env, stdout, stderr, text):
         workdir = Path(cwd)
         # Simulate latexmk producing the intermediate PDF.
         if cmd and cmd[0] == "latexmk":

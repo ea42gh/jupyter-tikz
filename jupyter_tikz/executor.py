@@ -61,6 +61,31 @@ def _tail_text(path: Path, *, limit_chars: int) -> str:
     return txt[-int(limit_chars) :]
 
 
+def _build_subprocess_env(*, source_cwd: Path | None = None) -> dict[str, str]:
+    """Build subprocess env with a TeX search path that includes caller CWD.
+
+    By default we keep executor builds isolated in a temp workdir, but still
+    allow relative TeX inputs (e.g. ``\\input{grid.tikz}``, PGFPlots
+    ``table {data.tsv}``) from the notebook/project directory.
+
+    Set ``JUPYTER_TIKZ_DISABLE_CWD_TEXINPUTS=1`` to opt out of this behavior.
+    """
+
+    env = os.environ.copy()
+    if _env_truthy("JUPYTER_TIKZ_DISABLE_CWD_TEXINPUTS"):
+        return env
+
+    cwd = str((source_cwd or Path.cwd()).resolve())
+    texinputs = env.get("TEXINPUTS", "")
+    prefix = os.pathsep.join([".", cwd])
+    if texinputs:
+        env["TEXINPUTS"] = os.pathsep.join([prefix, texinputs])
+    else:
+        # Keep the trailing separator so TeX also searches its default paths.
+        env["TEXINPUTS"] = prefix + os.pathsep
+    return env
+
+
 def _format_toolchain_failure(
     artifacts: "RenderArtifacts",
     *,
@@ -252,11 +277,13 @@ def _run_toolchain_in_dir(
     returncodes: List[int] = []
     stdout_chunks: List[str] = []
     stderr_chunks: List[str] = []
+    run_env = _build_subprocess_env()
 
     for cmd in commands:
         proc = subprocess.run(
             cmd,
             cwd=str(workdir),
+            env=run_env,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -436,11 +463,13 @@ def run_toolchain(
             crop_mode=crop_mode,
             exact_bbox=exact_bbox,
         )
+        run_env = _build_subprocess_env()
 
         for cmd in commands:
             proc = subprocess.run(
                 cmd,
                 cwd=str(workdir),              # ← str() is correct
+                env=run_env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,

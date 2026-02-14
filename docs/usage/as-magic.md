@@ -543,6 +543,13 @@ You can even save PDF files using the flag `-sp=<pdf_name.pdf>` or `--save-pdf=<
 
 You can load figures from a file using the LaTeX command `\input`.
 
+By default, `%%tikz` includes the current notebook working directory in the TeX
+search path (`TEXINPUTS`), so relative files like `\input{grid.tikz}` and
+PGFPlots `table {data.tsv}` resolve without requiring `-k`.
+Set `JUPYTER_TIKZ_DISABLE_CWD_TEXINPUTS=1` to opt out.
+`-k`/`--keep-temp` is for retaining build artifacts (debugging), not for
+enabling relative file loading.
+
 First, we are going to create a file named `grid.tikz`:
 
 ```latex

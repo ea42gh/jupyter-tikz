@@ -121,6 +121,14 @@ custom_pdftocairo_path = os.path.join(
 os.environ["JUPYTER_TIKZ_PDFTOCAIROPATH"] = custom_pdftocairo_path
 ```
 
+By default, executor-based rendering adds your current working directory to
+TeX's search path (`TEXINPUTS`). This allows relative inputs like
+`\input{grid.tikz}` and PGFPlots `table {data.tsv}` while still compiling in an
+isolated temporary directory. Set `JUPYTER_TIKZ_DISABLE_CWD_TEXINPUTS=1` to opt
+out.
+`-k`/`--keep-temp` is for retaining build artifacts (debugging), not for
+enabling relative file loading.
+
 ## Install Jupyter TikZ
 
 You can install `jupyter-tikz` by using the following command in your terminal:
@@ -229,7 +237,7 @@ All additional options are listed below:
 | `-d=<int>`<br>`--dpi=<int>` | DPI to use when rasterizing the image.<br>&nbsp;&nbsp;&nbsp;&nbsp;*Example:* `--dpi=300`.<br>&nbsp;&nbsp;&nbsp;&nbsp;*Defaults* to `-d=96`. |
 | `-g`<br>`--gray` | Set grayscale to the rasterized image. |
 | `-e`<br>`--full-err` | Print the full error message when an error occurs. |
-| `-k`<br>`--keep-temp` | Keep temporary files. |
+| `-k`<br>`--keep-temp` | Keep temporary files in the current directory (mainly for debugging). |
 | `-tp=<str>`<br>`--tex-program=<str>` | TeX program to use for compilation.<br>&nbsp;&nbsp;&nbsp;&nbsp;*Example:* `-tp=xelatex` or `-tp=lualatex`.<br>&nbsp;&nbsp;&nbsp;&nbsp;*Defaults* to `-tp=pdflatex`. |
 | `-ta=<str>`<br>`--tex-args=<str>` | Arguments to pass to the TeX program.<br>&nbsp;&nbsp;&nbsp;&nbsp;*Example:* `-ta "$tex_args_ipython_variable"`.<br>&nbsp;&nbsp;&nbsp;&nbsp;*Defaults* to None. |
 | `-nc`<br>`--no-compile` | Do not compile the TeX code. |
@@ -261,6 +269,7 @@ All notable changes to this project are presented below.
 - Improved executor result typing with a dataclass-based `ExecutionResult` API.
 - Standardized uncached-render failures to include the same stderr/log diagnostic tails as artifact-based failures.
 - Refactored monolithic `jupyter_tikz.py` into focused internal modules (`args`, `models`, `magic`, `legacy_render`) with backward-compatible facade exports.
+- Added default CWD `TEXINPUTS` injection so relative TeX inputs/PGFPlots tables work in temp-build mode (opt out with `JUPYTER_TIKZ_DISABLE_CWD_TEXINPUTS=1`).
 
 **📚 Docs**
 

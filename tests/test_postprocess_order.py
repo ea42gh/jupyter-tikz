@@ -24,7 +24,7 @@ def _fake_subprocess_run_factory(output_stem: str):
                 return arg
         return None
 
-    def fake_run(cmd, cwd=None, stdout=None, stderr=None, text=None, timeout=None):
+    def fake_run(cmd, cwd=None, env=None, stdout=None, stderr=None, text=None, timeout=None):
         workdir = Path(cwd) if cwd else Path(".")
         # Always create placeholder build outputs that downstream code expects.
         (workdir / f"{output_stem}.log").write_text("log")

@@ -66,6 +66,24 @@ class TikZMagics(Magics):
             err_msg = _tail_lines(err_msg, max_lines=20)
         print(err_msg, file=sys.stderr)
 
+    @staticmethod
+    def _resolve_keep_temp_workdir(keep_temp_arg: bool | str) -> Path | None:
+        """Resolve workdir for keep-temp mode.
+
+        - False: disabled
+        - True: current working directory
+        - str: provided directory (created if missing)
+        """
+        if not keep_temp_arg:
+            return None
+        if keep_temp_arg is True:
+            return Path().resolve()
+        path = Path(str(keep_temp_arg)).expanduser()
+        if not path.is_absolute():
+            path = Path().resolve() / path
+        path.mkdir(parents=True, exist_ok=True)
+        return path.resolve()
+
     def _rasterize_from_pdf(
         self,
         *,
@@ -100,13 +118,15 @@ class TikZMagics(Magics):
 
     def _render_with_executor(self) -> Image | SVG | None:
         toolchain_name = self._resolve_executor_toolchain()
+        keep_temp_arg = self.args["keep_temp"]
+        keep_temp = bool(keep_temp_arg)
         if toolchain_name is None:
             return self.tex_obj.run_latex(
                 tex_program=self.args["tex_program"],
                 tex_args=self.args["tex_args"],
                 rasterize=self.args["rasterize"],
                 full_err=self.args["full_err"],
-                keep_temp=self.args["keep_temp"],
+                keep_temp=keep_temp,
                 save_tikz=self.args["save_tikz"],
                 save_tex=self.args["save_tex"],
                 save_pdf=self.args["save_pdf"],
@@ -115,7 +135,6 @@ class TikZMagics(Magics):
                 grayscale=self.args["gray"],
             )
 
-        keep_temp = bool(self.args["keep_temp"])
         output_stem = self.tex_obj._hex_hash
 
         def _run_in(workdir: Path) -> Image | SVG | None:
@@ -179,8 +198,9 @@ class TikZMagics(Magics):
                 )
             return display.SVG(data=svg_text)
 
-        if keep_temp:
-            return _run_in(Path().resolve())
+        keep_temp_workdir = self._resolve_keep_temp_workdir(keep_temp_arg)
+        if keep_temp_workdir is not None:
+            return _run_in(keep_temp_workdir)
         with tempfile.TemporaryDirectory(prefix="jupyter_tikz_") as tmp:
             return _run_in(Path(tmp))
 

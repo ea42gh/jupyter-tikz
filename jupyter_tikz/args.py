@@ -126,8 +126,10 @@ _ARGS = {
     "keep-temp": {
         "short-arg": "k",
         "dest": "keep_temp",
-        "type": bool,
-        "desc": "Keep temporary files",
+        "type": "bool_or_str",
+        "default": False,
+        "desc": "Keep temporary files; optionally provide an output directory",
+        "example": "`-k` or `-k=outputs/tmp`",
     },
     "tex-program": {
         "short-arg": "tp",
@@ -211,6 +213,10 @@ def _get_arg_params(arg: str) -> tuple[tuple[str, str], dict[str, Any]]:
     if _ARGS[arg]["type"] == bool:
         kwargs["action"] = "store_true"
         kwargs["default"] = False
+    elif _ARGS[arg]["type"] == "bool_or_str":
+        kwargs["nargs"] = "?"
+        kwargs["const"] = True
+        kwargs["default"] = _ARGS[arg]["default"]
     elif _ARGS[arg]["type"] == str:
         kwargs["default"] = _ARGS[arg]["default"]
     else:

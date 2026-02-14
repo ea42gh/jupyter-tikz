@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from jupyter_tikz import TexDocument, TexFragment, TikZMagics
@@ -322,6 +324,43 @@ def test_remove_quotation_marks_from_strings_args(
 
     # Assert
     assert tikz_magic_mock.args[key] == expected_output
+
+
+def test_keep_temp_bool_flag_parses(tikz_magic_mock):
+    tikz_magic_mock.tikz("-k -nc", "any code")
+    assert tikz_magic_mock.args["keep_temp"] is True
+
+
+def test_keep_temp_optional_dir_parses(tikz_magic_mock):
+    tikz_magic_mock.tikz("--keep-temp outputs/tmp -nc", "any code")
+    assert tikz_magic_mock.args["keep_temp"] == "outputs/tmp"
+
+
+def test_keep_temp_optional_dir_routes_executor_output_dir(tikz_magic, monkeypatch, tmp_path):
+    captured: dict[str, Path] = {}
+
+    class _Artifacts:
+        def __init__(self, workdir: Path):
+            self.tex_path = workdir / "dummy.tex"
+            self.pdf_path = None
+            self.svg_path = workdir / "dummy.svg"
+
+        def read_svg(self, *, strip_xml_declaration=True):
+            _ = strip_xml_declaration
+            return "<svg viewBox='0 0 1 1'></svg>"
+
+    def fake_render_svg_with_artifacts(tex_source, *, output_dir, toolchain_name, output_stem):
+        _ = tex_source, toolchain_name, output_stem
+        out = Path(output_dir)
+        captured["output_dir"] = out
+        out.mkdir(parents=True, exist_ok=True)
+        return _Artifacts(out)
+
+    monkeypatch.setattr("jupyter_tikz.magic.render_svg_with_artifacts", fake_render_svg_with_artifacts)
+
+    tikz_magic.tikz("--keep-temp outputs/tmp", r"\draw (0,0) -- (1,1);")
+
+    assert captured["output_dir"] == (tmp_path / "outputs" / "tmp").resolve()
 
 
 # =================== Test src content ===================

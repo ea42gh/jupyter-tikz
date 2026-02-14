@@ -131,6 +131,17 @@ from jupyter_tikz.jupyter_tikz import _get_arg_params, _remove_wrapping_quotes
                 "help": "Print the full error message when an error occurs.",
             },
         ),
+        (
+            "keep-temp",
+            ("-k", "--keep-temp"),
+            {
+                "dest": "keep_temp",
+                "nargs": "?",
+                "const": True,
+                "default": False,
+                "help": "Keep temporary files; optionally provide an output directory, e.g., `-k` or `-k=outputs/tmp`.",
+            },
+        ),
     ],
 )
 def test_get_arg_params(arg, expected_args, expected_kwargs):

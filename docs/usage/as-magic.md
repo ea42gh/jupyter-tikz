@@ -35,7 +35,8 @@ Finally, if you forget the usage, as for help by typing `%tikz?`, or visit **add
 <pre>
 %tikz [-as INPUT_TYPE] [-i] [-f] [-p LATEX_PREAMBLE] [-t TEX_PACKAGES]
             [-nt] [-l TIKZ_LIBRARIES] [-lp PGFPLOTS_LIBRARIES] [-nj] [-pj]
-            [-pt] [-sc SCALE] [-r] [-d DPI] [-g] [-e] [-k] [-tp TEX_PROGRAM]
+            [-pt] [-sc SCALE] [-r] [-d DPI] [-g] [-e] [-k [KEEP_TEMP]]
+            [-tp TEX_PROGRAM]
             [-ta TEX_ARGS] [-nc] [-s SAVE_TIKZ] [-st SAVE_TEX] [-sp SAVE_PDF]
             [-S SAVE_IMAGE] [-sv SAVE_VAR]
             [code]
@@ -102,7 +103,9 @@ options:
                         `--dpi=300`. Defaults to `-d=96`.
   -g, --gray            Set grayscale to the rasterized image.
   -e, --full-err        Print the full error message when an error occurs.
-  -k, --keep-temp       Keep temporary files.
+  -k [KEEP_TEMP], --keep-temp [KEEP_TEMP]
+                        Keep temporary files; optionally provide an output
+                        directory, e.g., `-k` or `-k=outputs/tmp`.
   -tp TEX_PROGRAM, --tex-program TEX_PROGRAM
                         TeX program to use for compilation, e.g.,
                         `-tp=xelatex` or `-tp=lualatex`. Defaults to
@@ -1258,7 +1261,7 @@ If you want to print the entire LaTeX string for any reason, you can use the `-p
 </div>
 
 
-Finally, you can keep the temporary files (LaTeX, PDF and image) for further investigation by using `-k` (or `--keep`). The file names are hex representation of hash of the full LaTeX code.
+Finally, you can keep the temporary files (LaTeX, PDF and image) for further investigation by using `-k` (or `--keep-temp`). The file names are hex representation of hash of the full LaTeX code. You can also send these files to a directory with `-k=outputs/tmp`.
 
 ```latex
 %%tikz -as=t -sc=2 -k

@@ -237,7 +237,7 @@ All additional options are listed below:
 | `-d=<int>`<br>`--dpi=<int>` | DPI to use when rasterizing the image.<br>&nbsp;&nbsp;&nbsp;&nbsp;*Example:* `--dpi=300`.<br>&nbsp;&nbsp;&nbsp;&nbsp;*Defaults* to `-d=96`. |
 | `-g`<br>`--gray` | Set grayscale to the rasterized image. |
 | `-e`<br>`--full-err` | Print the full error message when an error occurs. |
-| `-k`<br>`--keep-temp` | Keep temporary files in the current directory (mainly for debugging). |
+| `-k[=<dir>]`<br>`--keep-temp[=<dir>]` | Keep temporary files for debugging. Without a value, files are kept in the current directory; with a value, files are kept in the specified directory. |
 | `-tp=<str>`<br>`--tex-program=<str>` | TeX program to use for compilation.<br>&nbsp;&nbsp;&nbsp;&nbsp;*Example:* `-tp=xelatex` or `-tp=lualatex`.<br>&nbsp;&nbsp;&nbsp;&nbsp;*Defaults* to `-tp=pdflatex`. |
 | `-ta=<str>`<br>`--tex-args=<str>` | Arguments to pass to the TeX program.<br>&nbsp;&nbsp;&nbsp;&nbsp;*Example:* `-ta "$tex_args_ipython_variable"`.<br>&nbsp;&nbsp;&nbsp;&nbsp;*Defaults* to None. |
 | `-nc`<br>`--no-compile` | Do not compile the TeX code. |
@@ -260,7 +260,7 @@ Contributions are welcome from everyone! Whether you're reporting bugs, submitti
 
 All notable changes to this project are presented below.
 
-## Unreleased
+## v0.5.8
 
 **✨ Improvements**
 
@@ -270,6 +270,7 @@ All notable changes to this project are presented below.
 - Standardized uncached-render failures to include the same stderr/log diagnostic tails as artifact-based failures.
 - Refactored monolithic `jupyter_tikz.py` into focused internal modules (`args`, `models`, `magic`, `legacy_render`) with backward-compatible facade exports.
 - Added default CWD `TEXINPUTS` injection so relative TeX inputs/PGFPlots tables work in temp-build mode (opt out with `JUPYTER_TIKZ_DISABLE_CWD_TEXINPUTS=1`).
+- Extended `-k`/`--keep-temp` to accept an optional output directory (e.g., `-k=outputs/tmp`) while preserving existing `-k` behavior.
 
 **📚 Docs**
 

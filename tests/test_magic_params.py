@@ -40,6 +40,7 @@ def tikz_magic_mock(mocker, monkeypatch, tmp_path):
     mocker.patch.object(
         TexFragment, "_build_standalone_preamble", return_value="dummy preamble"
     )
+    mocker.patch.object(TikZMagics, "_render_with_executor", return_value="dummy_image")
     # mocker.patch.object(TexDocument, "_render_jinja", side_effect=jinja_mock)
 
     return tikz_magic
@@ -141,7 +142,7 @@ def test_image_none(tikz_magic_mock, mocker, capsys):
     # Arrange
     line = ""
     cell = "any cell content"
-    mocker.patch.object(TexDocument, "run_latex", return_value=None)
+    mocker.patch.object(TikZMagics, "_render_with_executor", return_value=None)
 
     # Act
     res = tikz_magic_mock.tikz(line, cell)

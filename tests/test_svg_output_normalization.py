@@ -4,7 +4,13 @@ from pathlib import Path
 
 import pytest
 
-from jupyter_tikz.executor import RenderArtifacts, run_toolchain, strip_svg_xml_declaration
+import jupyter_tikz.executor as ex
+from jupyter_tikz.executor import (
+    RenderArtifacts,
+    render_svg,
+    run_toolchain,
+    strip_svg_xml_declaration,
+)
 from jupyter_tikz.toolchains import TOOLCHAINS
 
 
@@ -86,3 +92,60 @@ def test_run_toolchain_strip_xml_declaration_toggle(monkeypatch):
     res2 = run_toolchain(tc, tex, crop="none", strip_xml_declaration=False)
     assert res2.svg_text is not None
     assert res2.svg_text.lstrip().startswith("<?xml")
+
+
+def test_render_svg_strip_xml_declaration_toggle(monkeypatch, tmp_path: Path):
+    def fake_run_toolchain_in_dir(
+        toolchain,
+        tex_source,
+        workdir,
+        output_stem,
+        *,
+        crop_mode,
+        enforce_tight_crop,
+        exact_bbox,
+        padding,
+    ):
+        workdir = Path(workdir)
+        workdir.mkdir(parents=True, exist_ok=True)
+        tex_path = workdir / f"{output_stem}.tex"
+        svg_path = workdir / f"{output_stem}.svg"
+        stdout_path = workdir / f"{output_stem}.stdout.txt"
+        stderr_path = workdir / f"{output_stem}.stderr.txt"
+        tex_path.write_text(tex_source)
+        svg_path.write_text(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\n"
+            "<svg viewBox=\"0 0 10 10\"></svg>\n"
+        )
+        stdout_path.write_text("")
+        stderr_path.write_text("")
+        return RenderArtifacts(
+            workdir=workdir,
+            tex_path=tex_path,
+            pdf_path=None,
+            svg_path=svg_path,
+            stdout_path=stdout_path,
+            stderr_path=stderr_path,
+            returncodes=[0, 0],
+        )
+
+    monkeypatch.setattr(ex, "_run_toolchain_in_dir", fake_run_toolchain_in_dir)
+
+    tex = "\\documentclass{standalone}\\begin{document}x\\end{document}"
+    prefix = tmp_path / "kept" / "job"
+
+    keep_xml = render_svg(
+        tex,
+        toolchain_name="pdftex_pdftocairo",
+        artifacts_path=prefix,
+        strip_xml_declaration=False,
+    )
+    assert keep_xml.lstrip().startswith("<?xml")
+
+    strip_xml = render_svg(
+        tex,
+        toolchain_name="pdftex_pdftocairo",
+        artifacts_path=prefix,
+        strip_xml_declaration=True,
+    )
+    assert strip_xml.lstrip().startswith("<svg")

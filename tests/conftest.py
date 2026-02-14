@@ -40,8 +40,6 @@ if str(_PKG_ROOT) not in sys.path:
 
 from jupyter_tikz import TexDocument
 
-from jupyter_tikz import TexDocument
-
 
 # ---------------------------------------------------------------------------
 # Stable sample inputs used by multiple tests

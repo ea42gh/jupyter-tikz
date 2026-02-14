@@ -42,6 +42,19 @@ def test_run_command_failure(
     assert expected_err == err
 
 
+def test_run_command_uses_argv_without_shell(tex_document, mocker):
+    command = "pdflatex --version"
+    spy = mocker.spy(subprocess, "run")
+
+    tex_document._run_command(command)
+
+    called_args = spy.call_args.args[0]
+    called_kwargs = spy.call_args.kwargs
+    assert isinstance(called_args, list)
+    assert called_args[:2] == ["pdflatex", "--version"]
+    assert called_kwargs.get("shell") is None
+
+
 def test_run_command_invalid_command(tex_document, capsys):
     # Arrange
     command = "invalid_command"
@@ -218,9 +231,9 @@ def test_run_latex__valid_tex_program(
     path = Path().resolve() / ANY_CODE_HASH
 
     if tex_args:
-        expected_command = f"{tex_program} {tex_args} {path}.tex"
+        expected_command = [tex_program, *tex_args.split(), str(path.with_suffix(".tex"))]
     else:
-        expected_command = f"{tex_program} {path}.tex"
+        expected_command = [tex_program, str(path.with_suffix(".tex"))]
 
     # Act
     tex_document_mock__run_latex.run_latex(
@@ -248,7 +261,12 @@ def test_pdf_cairo_custom_path(
 
     spy = mocker.spy(tex_document_mock__run_latex, "_run_command")
 
-    expected_command = f"{pdf_to_cairo_path} -svg {output_stem}.pdf {output_stem}.svg"
+    expected_command = [
+        pdf_to_cairo_path,
+        "-svg",
+        str(output_stem.with_suffix(".pdf")),
+        str(output_stem.with_suffix(".svg")),
+    ]
 
     # Act
     tex_document_mock__run_latex.run_latex(full_err=full_err)
@@ -268,7 +286,12 @@ def test_pdf_cairo_default_path(
 
     spy = mocker.spy(tex_document_mock__run_latex, "_run_command")
 
-    expected_command = f"pdftocairo -svg {output_stem}.pdf {output_stem}.svg"
+    expected_command = [
+        "pdftocairo",
+        "-svg",
+        str(output_stem.with_suffix(".pdf")),
+        str(output_stem.with_suffix(".svg")),
+    ]
 
     # Act
     res = tex_document_mock__run_latex.run_latex(full_err=full_err)
@@ -291,9 +314,16 @@ def test_pdf_cairo_rasterize(
 
     spy = mocker.spy(tex_document_mock__run_latex, "_run_command")
 
-    expected_command = (
-        f"pdftocairo -png -singlefile -transp -r {dpi} {output_stem}.pdf {output_stem}"
-    )
+    expected_command = [
+        "pdftocairo",
+        "-png",
+        "-singlefile",
+        "-transp",
+        "-r",
+        str(dpi),
+        str(output_stem.with_suffix(".pdf")),
+        str(output_stem),
+    ]
 
     # Act
     res = tex_document_mock__run_latex.run_latex(
@@ -319,9 +349,16 @@ def test_pdf_cairo_rasterize_with_grayscale(
 
     spy = mocker.spy(tex_document_mock__run_latex, "_run_command")
 
-    expected_command = (
-        f"pdftocairo -png -singlefile -gray -r {dpi} {output_stem}.pdf {output_stem}"
-    )
+    expected_command = [
+        "pdftocairo",
+        "-png",
+        "-singlefile",
+        "-gray",
+        "-r",
+        str(dpi),
+        str(output_stem.with_suffix(".pdf")),
+        str(output_stem),
+    ]
 
     # Act
     res = tex_document_mock__run_latex.run_latex(
@@ -519,6 +556,17 @@ def test_run_latex_bat_input_full_err(monkeypatch, tmpdir, capsys):
 def test_run_latex_custom_tex_command(monkeypatch, tmpdir, texprogram, texargs):
     # Arrange
     monkeypatch.chdir(tmpdir)
+    if texprogram == "lualatex":
+        probe = Path("lualatex_probe.tex")
+        probe.write_text("\\documentclass{article}\\begin{document}x\\end{document}")
+        preflight = subprocess.run(
+            ["lualatex", "-interaction=nonstopmode", str(probe)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        if preflight.returncode != 0:
+            pytest.skip("lualatex is installed but unusable in this environment")
 
     # Act
     tex_document = TexDocument(EXAMPLE_GOOD_TEX)

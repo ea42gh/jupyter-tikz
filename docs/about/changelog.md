@@ -8,6 +8,7 @@ All notable changes to this project are presented below.
 - Hardened legacy command execution by switching from shell command strings to argument-vector subprocess calls.
 - Improved executor result typing with a dataclass-based `ExecutionResult` API.
 - Standardized uncached-render failures to include the same stderr/log diagnostic tails as artifact-based failures.
+- Refactored monolithic `jupyter_tikz.py` into focused internal modules (`args`, `models`, `magic`, `legacy_render`) with backward-compatible facade exports.
 
 **📚 Docs**
 

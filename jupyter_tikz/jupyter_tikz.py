@@ -2,8 +2,11 @@
 
 import os
 import re
+import shlex
+import shutil
 import subprocess
 import sys
+import tempfile
 from hashlib import md5
 
 
@@ -18,13 +21,14 @@ ANY_CODE_HASH = code_hash("any code")
 from pathlib import Path
 from string import Template
 from textwrap import dedent, indent
-from typing import Any, Literal
+from typing import Any, Literal, Sequence
 
 import jinja2
 from IPython import display
 from IPython.core.magic import Magics, line_cell_magic, magics_class, needs_local_scope
 from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
 from IPython.display import SVG, Image
+from jupyter_tikz.executor import RenderError, render_svg_with_artifacts
 
 _EXTRAS_CONFLITS_ERR = "You cannot provide `preamble` and (`tex_packages`, `tikz_libraries`, and/or `pgfplots_libraries`) at the same time."
 _PRINT_CONFLICT_ERR = (
@@ -116,16 +120,30 @@ class TexDocument:
                 if file.exists():
                     file.unlink()
 
-    def _run_command(self, command: str, full_err: bool = False, **kwargs) -> int:
+    def _run_command(
+        self, command: str | Sequence[str], full_err: bool = False, **kwargs
+    ) -> int:
+        # Backward-compatible kwarg alias used by older tests/callers.
+        if "working_dir" in kwargs and "cwd" not in kwargs:
+            kwargs["cwd"] = kwargs.pop("working_dir")
 
-        result = subprocess.run(
-            command,
-            shell=True,
-            capture_output=True,
-            text=True,
-            check=False,
-            **kwargs,
-        )
+        if isinstance(command, str):
+            cmd = shlex.split(command)
+        else:
+            cmd = [str(c) for c in command]
+
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+                **kwargs,
+            )
+        except OSError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+
         if result.returncode != 0:
             err_msg = result.stderr if result.stderr else result.stdout
             if not full_err:  # tail -n 20
@@ -196,10 +214,10 @@ class TexDocument:
             tex_path = Path().resolve() / f"{self._hex_hash}.tex"
             tex_path.write_text(self.full_latex, encoding="utf-8")
 
-            tex_command = tex_program
+            tex_command = [tex_program]
             if tex_args:
-                tex_command += f" {tex_args}"
-            tex_command += f" {tex_path}"
+                tex_command.extend(shlex.split(tex_args))
+            tex_command.append(str(tex_path))
 
             # Pass `full_err` positionally so call sites are easy to spy on in
             # tests (and consistent with the historical API shape).
@@ -215,17 +233,21 @@ class TexDocument:
             else:
                 pdftocairo_path = "pdftocairo"
 
-            pdftocairo_command = f"{pdftocairo_path} -{image_format}"
+            pdftocairo_command = [str(pdftocairo_path), f"-{image_format}"]
             if rasterize:
-                pdftocairo_command += (
-                    f" -singlefile -{'gray' if grayscale else 'transp'} -r {dpi}"
+                pdftocairo_command.extend(
+                    ["-singlefile", f"-{'gray' if grayscale else 'transp'}", "-r", str(dpi)]
                 )
 
-            pdftocairo_command += f" {tex_path.with_suffix('.pdf')}"
-            pdftocairo_command += (
-                f" {tex_path.with_suffix('.svg')}"
-                if not rasterize
-                else f" {tex_path.parent / tex_path.stem}"
+            pdftocairo_command.extend(
+                [
+                    str(tex_path.with_suffix(".pdf")),
+                    (
+                        str(tex_path.with_suffix(".svg"))
+                        if not rasterize
+                        else str(tex_path.parent / tex_path.stem)
+                    ),
+                ]
             )
             res = self._run_command(pdftocairo_command, full_err)
 
@@ -251,8 +273,6 @@ class TexDocument:
             self._clearup_latex_garbage(keep_temp)
 
             return image
-        except Exception as e:
-            raise e
         finally:
             self._clearup_latex_garbage(keep_temp)
 
@@ -623,6 +643,18 @@ def _remove_wrapping_quotes(text):
     return pattern.sub(r"\1", text)
 
 
+def _resolve_save_dest(dest: str, ext: Literal["tikz", "tex", "png", "svg", "pdf"]) -> Path:
+    """Resolve destination path consistently with historical _save behavior."""
+    dest_path = Path(dest)
+    if os.environ.get("JUPYTER_TIKZ_SAVEDIR"):
+        dest_path = Path(str(os.environ.get("JUPYTER_TIKZ_SAVEDIR"))) / dest_path
+    dest_path = dest_path.resolve()
+    if dest_path.suffix != f".{ext}":
+        dest_path = dest_path.with_suffix(dest_path.suffix + f".{ext}")
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+    return dest_path
+
+
 @magics_class
 class TikZMagics(Magics):
     def _get_input_type(self, input_type: str) -> str | None:
@@ -635,6 +667,141 @@ class TikZMagics(Magics):
                 return VALID_INPUT_TYPES[index]
 
         return None
+
+    def _resolve_executor_toolchain(self) -> str | None:
+        tex_program = (self.args.get("tex_program") or "pdflatex").lower().strip()
+        if self.args.get("tex_args"):
+            return None
+        if tex_program == "pdflatex":
+            return "pdftex_pdftocairo"
+        if tex_program == "xelatex":
+            return "xelatex_pdftocairo"
+        return None
+
+    @staticmethod
+    def _print_err(msg: str, full_err: bool) -> None:
+        err_msg = msg
+        if not full_err:
+            err_msg = "\n".join(err_msg.splitlines()[-20:])
+        print(err_msg, file=sys.stderr)
+
+    def _rasterize_from_pdf(
+        self,
+        *,
+        pdf_path: Path,
+        png_path: Path,
+        dpi: int,
+        grayscale: bool,
+        full_err: bool,
+    ) -> bool:
+        pdftocairo_path = os.environ.get("JUPYTER_TIKZ_PDFTOCAIROPATH") or "pdftocairo"
+        cmd = [
+            pdftocairo_path,
+            "-png",
+            "-singlefile",
+            f"-{'gray' if grayscale else 'transp'}",
+            "-r",
+            str(dpi),
+            str(pdf_path),
+            str(png_path.with_suffix("")),
+        ]
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if proc.returncode != 0:
+            err_msg = proc.stderr if proc.stderr else proc.stdout
+            self._print_err(err_msg, full_err)
+            return False
+        return True
+
+    def _render_with_executor(self) -> Image | SVG | None:
+        toolchain_name = self._resolve_executor_toolchain()
+        if toolchain_name is None:
+            return self.tex_obj.run_latex(
+                tex_program=self.args["tex_program"],
+                tex_args=self.args["tex_args"],
+                rasterize=self.args["rasterize"],
+                full_err=self.args["full_err"],
+                keep_temp=self.args["keep_temp"],
+                save_tikz=self.args["save_tikz"],
+                save_tex=self.args["save_tex"],
+                save_pdf=self.args["save_pdf"],
+                save_image=self.args["save_image"],
+                dpi=self.args["dpi"],
+                grayscale=self.args["gray"],
+            )
+
+        keep_temp = bool(self.args["keep_temp"])
+        output_stem = self.tex_obj._hex_hash
+
+        def _run_in(workdir: Path) -> Image | SVG | None:
+            try:
+                artifacts = render_svg_with_artifacts(
+                    self.tex_obj.full_latex,
+                    output_dir=workdir,
+                    toolchain_name=toolchain_name,
+                    output_stem=output_stem,
+                )
+            except (RenderError, ValueError) as exc:
+                self._print_err(str(exc), self.args["full_err"])
+                return None
+
+            if self.args["save_tex"]:
+                shutil.copy2(
+                    artifacts.tex_path,
+                    _resolve_save_dest(self.args["save_tex"], "tex"),
+                )
+
+            if self.args["save_pdf"] and artifacts.pdf_path is not None:
+                shutil.copy2(
+                    artifacts.pdf_path,
+                    _resolve_save_dest(self.args["save_pdf"], "pdf"),
+                )
+
+            if self.args["save_tikz"] and self.tex_obj.tikz_code:
+                _resolve_save_dest(self.args["save_tikz"], "tikz").write_text(
+                    self.tex_obj.tikz_code,
+                    encoding="utf-8",
+                )
+
+            if self.args["rasterize"]:
+                if artifacts.pdf_path is None:
+                    self._print_err("PDF output not produced.", self.args["full_err"])
+                    return None
+
+                png_path = workdir / f"{output_stem}.png"
+                ok = self._rasterize_from_pdf(
+                    pdf_path=artifacts.pdf_path,
+                    png_path=png_path,
+                    dpi=self.args["dpi"],
+                    grayscale=self.args["gray"],
+                    full_err=self.args["full_err"],
+                )
+                if not ok:
+                    return None
+
+                if self.args["save_image"]:
+                    shutil.copy2(
+                        png_path,
+                        _resolve_save_dest(self.args["save_image"], "png"),
+                    )
+                return display.Image(filename=str(png_path))
+
+            svg_text = artifacts.read_svg(strip_xml_declaration=False)
+            if self.args["save_image"]:
+                shutil.copy2(
+                    artifacts.svg_path,
+                    _resolve_save_dest(self.args["save_image"], "svg"),
+                )
+            return display.SVG(data=svg_text)
+
+        if keep_temp:
+            return _run_in(Path().resolve())
+        with tempfile.TemporaryDirectory(prefix="jupyter_tikz_") as tmp:
+            return _run_in(Path(tmp))
 
     # Path to the pdftocairo executable
     @line_cell_magic
@@ -755,19 +922,7 @@ class TikZMagics(Magics):
 
         image = None
         if not self.args["no_compile"]:
-            image = self.tex_obj.run_latex(
-                tex_program=self.args["tex_program"],
-                tex_args=self.args["tex_args"],
-                rasterize=self.args["rasterize"],
-                full_err=self.args["full_err"],
-                keep_temp=self.args["keep_temp"],
-                save_tikz=self.args["save_tikz"],
-                save_tex=self.args["save_tex"],
-                save_pdf=self.args["save_pdf"],
-                save_image=self.args["save_image"],
-                dpi=self.args["dpi"],
-                grayscale=self.args["gray"],
-            )
+            image = self._render_with_executor()
             if image is None:
                 return None
 

@@ -1,6 +1,6 @@
 __author__ = """Lucas Lima Rodrigues"""
 __email__ = "lucaslrodri@gmail.com"
-__version__ = "0.1.0"
+__version__ = "0.5.6"
 
 from .jupyter_tikz import _ARGS, TexDocument, TexFragment, TikZMagics
 from .executor import (

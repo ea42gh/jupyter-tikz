@@ -582,7 +582,8 @@ def render_svg(
         if frame and artifacts.svg_path is not None:
             apply_canvas_frame_to_svg_file(artifacts.svg_path, frame)
 
-        svg = artifacts.read_svg()
+        # Read raw SVG here and apply the strip policy once via _maybe_strip().
+        svg = artifacts.read_svg(strip_xml_declaration=False)
         ok = True
         return _maybe_strip(svg)
     finally:

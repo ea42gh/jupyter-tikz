@@ -6,6 +6,8 @@ All notable changes to this project are presented below.
 
 - Magic rendering now uses the executor/toolchain pipeline by default for `pdflatex` and `xelatex`.
 - Hardened legacy command execution by switching from shell command strings to argument-vector subprocess calls.
+- Improved executor result typing with a dataclass-based `ExecutionResult` API.
+- Standardized uncached-render failures to include the same stderr/log diagnostic tails as artifact-based failures.
 
 **📚 Docs**
 

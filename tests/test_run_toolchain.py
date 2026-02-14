@@ -1,9 +1,10 @@
 import os
 import shutil
 import pytest
+from dataclasses import is_dataclass
 
 from jupyter_tikz.toolchains import TOOLCHAINS
-from jupyter_tikz.executor import run_toolchain
+from jupyter_tikz.executor import ExecutionResult, run_toolchain
 
 
 @pytest.mark.needs_latex
@@ -25,6 +26,9 @@ def test_run_toolchain_basic_pdftocairo():
 
     result = run_toolchain(tc, tex, output_stem="hello")
 
+    assert is_dataclass(ExecutionResult)
+    assert isinstance(result, ExecutionResult)
     assert result.returncodes
     assert result.returncodes[0] == 0
-
+    assert isinstance(result.stdout_text, str)
+    assert isinstance(result.stderr_text, str)

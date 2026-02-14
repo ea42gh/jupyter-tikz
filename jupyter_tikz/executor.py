@@ -390,12 +390,20 @@ def _resolve_artifacts_target(
     p.parent.mkdir(parents=True, exist_ok=True)
     return p.parent, p.name, False
 
+@dataclass(frozen=True)
 class ExecutionResult:
-    def __init__(self, returncodes, stdout, stderr, svg_text):
-        self.returncodes = returncodes
-        self.stdout = stdout
-        self.stderr = stderr
-        self.svg_text = svg_text
+    returncodes: List[int]
+    stdout: List[str]
+    stderr: List[str]
+    svg_text: str | None
+
+    @property
+    def stdout_text(self) -> str:
+        return "".join(self.stdout)
+
+    @property
+    def stderr_text(self) -> str:
+        return "".join(self.stderr)
 # -------------------------------------------------------------------------------------------------------------------
 def run_toolchain(
     toolchain: Toolchain,
@@ -799,12 +807,11 @@ def _render_base_svg_uncached(
             padding=Padding(),
         )
         if not artifacts.returncodes or artifacts.returncodes[-1] != 0:
-            # Re-use the same error formatting logic as render_svg by raising.
-            stderr_tail = artifacts.stderr_path.read_text(errors="replace")[-4000:]
             raise RenderError(
-                "Toolchain execution failed.\n"
-                f"Last returncode: {artifacts.returncodes[-1] if artifacts.returncodes else 'n/a'}.\n"
-                "---- stderr tail ----\n"
-                f"{stderr_tail}"
+                _format_toolchain_failure(
+                    artifacts,
+                    workdir=workdir,
+                    output_stem=output_stem,
+                )
             )
         return artifacts.read_svg()

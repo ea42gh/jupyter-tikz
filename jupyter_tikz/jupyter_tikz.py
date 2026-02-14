@@ -37,6 +37,12 @@ _PRINT_CONFLICT_ERR = (
 _INPUT_TYPE_CONFLIT_ERR = "You cannot use `--implicit-pic`, `--full-document` or/and `-as=<input_type>` at the same time."
 
 
+def _tail_lines(msg: str, max_lines: int = 20) -> str:
+    if max_lines <= 0:
+        return msg
+    return "\n".join(msg.splitlines()[-max_lines:])
+
+
 class TexDocument:
     """This class provides functionality to create and render a LaTeX document given the full LaTeX code. It can also constructs LaTeX code using Jinja2 templates."""
 
@@ -147,7 +153,7 @@ class TexDocument:
         if result.returncode != 0:
             err_msg = result.stderr if result.stderr else result.stdout
             if not full_err:  # tail -n 20
-                err_msg = "\n".join(err_msg.splitlines()[-20:])
+                err_msg = _tail_lines(err_msg, max_lines=20)
             print(err_msg, file=sys.stderr)
         return result.returncode
 
@@ -682,7 +688,7 @@ class TikZMagics(Magics):
     def _print_err(msg: str, full_err: bool) -> None:
         err_msg = msg
         if not full_err:
-            err_msg = "\n".join(err_msg.splitlines()[-20:])
+            err_msg = _tail_lines(err_msg, max_lines=20)
         print(err_msg, file=sys.stderr)
 
     def _rasterize_from_pdf(

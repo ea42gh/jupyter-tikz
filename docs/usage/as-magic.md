@@ -933,6 +933,15 @@ Reusing the preamble in the figure:
 
 You can change the TeX program using `-tp=<tex_program>` or `--tex-program=<tex_program>`:
 
+!!! note
+    By default, magic rendering uses the executor toolchain:
+    - `-tp=pdflatex` maps to the `pdftex_pdftocairo` toolchain.
+    - `-tp=xelatex` maps to the `xelatex_pdftocairo` toolchain.
+
+    These paths require `latexmk` and a PDF-to-SVG converter (by default, `pdftocairo`) available in `PATH`.
+
+    Other TeX programs (for example `lualatex`) or custom `--tex-args` use the legacy execution path.
+
 ```latex
 %%tikz -as=tikz -t=pgfplots -nt -tp=lualatex
 \begin{axis}[

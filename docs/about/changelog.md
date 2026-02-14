@@ -1,5 +1,17 @@
 All notable changes to this project are presented below.
 
+## Unreleased
+
+**✨ Improvements**
+
+- Magic rendering now uses the executor/toolchain pipeline by default for `pdflatex` and `xelatex`.
+- Hardened legacy command execution by switching from shell command strings to argument-vector subprocess calls.
+
+**📚 Docs**
+
+- Updated installation and troubleshooting guides to document `latexmk` and toolchain PATH requirements.
+- Added notes to the magic usage guide explaining `--tex-program` toolchain mapping and legacy fallback behavior.
+
 ## v0.5.6
 
 **✨ Improvements**

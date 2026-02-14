@@ -48,6 +48,7 @@
 Jupyter-TikZ is a Python (3.10+) and IPython Magics library. However, in order for Jupyter-TikZ to work properly, some non-Python dependencies need to be installed first:
 
 - LaTeX
+- latexmk
 - Poppler
 
 ### LaTeX
@@ -62,6 +63,16 @@ You can test if a LaTeX distribution is installed by using the following command
 
 ```latex
 pdflatex --version
+```
+
+### latexmk
+
+The default `%%tikz` / `%tikz` magic rendering path uses `latexmk` to compile TeX.
+
+Check if `latexmk` is available:
+
+```shell
+latexmk -v
 ```
 
 ### Poppler
@@ -240,6 +251,18 @@ Contributions are welcome from everyone! Whether you're reporting bugs, submitti
 # Changelog
 
 All notable changes to this project are presented below.
+
+## Unreleased
+
+**✨ Improvements**
+
+- Magic rendering now uses the executor/toolchain pipeline by default for `pdflatex` and `xelatex`.
+- Hardened legacy command execution by switching from shell command strings to argument-vector subprocess calls.
+
+**📚 Docs**
+
+- Updated installation and troubleshooting guides to document `latexmk` and toolchain PATH requirements.
+- Added notes to the magic usage guide explaining `--tex-program` toolchain mapping and legacy fallback behavior.
 
 ## v0.5.6
 

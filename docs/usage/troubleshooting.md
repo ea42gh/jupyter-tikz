@@ -1,21 +1,41 @@
 {% include "templates/notebook-download.md" %}
 
-## Troubleshooting pdflatex PATH Issues
+## Troubleshooting toolchain PATH issues
 
-If you encounter issues with the `pdflatex` PATH and receive the following error message:
+The default magic execution path depends on these command-line tools:
+- `latexmk`
+- `pdftocairo` (or the binary configured by `JUPYTER_TIKZ_PDFTOCAIROPATH`)
+
+If one of them is not accessible, errors may look like:
 
 <div class="result" style="padding-right: 0;">
 <div class="log-output">
-/bin/sh: 1: pdflatex: not found
+latexmk: command not found
+<br>
+pdftocairo: No such file or directory
 </div>
 </div>
 
-First, ensure that the `pdflatex` command is accessible in your IDE environment. In some cases, you may need to add `pdflatex` to your system's PATH, or specify the `~` symbol before the command.
+First, ensure these commands are available in the same environment used by your notebook kernel:
 
-If you continue to experience issues, you can use the `-tp=<tex_program>` option to specify a custom `pdflatex` PATH. Here's an example:
+```shell
+latexmk -v
+pdftocairo -v
+```
+
+If `pdftocairo` is installed but not in `PATH`, configure it explicitly:
 
 ```python
-# Replace it for the path 
+import os
+os.environ["JUPYTER_TIKZ_PDFTOCAIROPATH"] = r"C:\path\to\pdftocairo.exe"
+```
+
+## Troubleshooting `pdflatex` path with custom `-tp`
+
+When you explicitly set `-tp=<tex_program>` to a full executable path (or use a TeX program outside the default toolchain mapping), that executable must also be reachable.
+
+```python
+# Replace with your local executable path
 PDF_LATEX_PATH = r"C:\Users\lucas\AppData\Local\Programs\MiKTeX\miktex\bin\x64\pdflatex.exe"
 ```
 

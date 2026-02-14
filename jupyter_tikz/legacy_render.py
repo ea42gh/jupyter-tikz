@@ -9,7 +9,10 @@ from typing import Literal, Sequence
 
 import jinja2
 from IPython import display
-from IPython.display import Image, SVG
+from IPython.display import SVG, Image
+
+from .naming import validate_output_stem
+from .save_paths import resolve_save_destination
 
 
 def _tail_lines(msg: str, max_lines: int = 20) -> str:
@@ -57,26 +60,15 @@ def save_artifact(
     dest: str,
     ext: Literal["tikz", "tex", "png", "svg", "pdf"],
 ) -> None:
-    dest_path = Path(dest)
-
-    if os.environ.get("JUPYTER_TIKZ_SAVEDIR"):
-        dest_path = str(os.environ.get("JUPYTER_TIKZ_SAVEDIR")) / dest_path
-
-    dest_path = dest_path.resolve()
-
-    if dest_path.suffix != f".{ext}":
-        dest_path = dest_path.with_suffix(dest_path.suffix + f".{ext}")
-
-    dest_path.parent.mkdir(parents=True, exist_ok=True)
+    dest_path = resolve_save_destination(dest, ext)
 
     if ext == "tikz":
         if not tex_obj.tikz_code:
             raise ValueError("No TikZ code to save.")
-        dest_path.with_suffix(".tikz").write_text(tex_obj.tikz_code, encoding="utf-8")
+        dest_path.write_text(tex_obj.tikz_code, encoding="utf-8")
     else:
-        Path(tex_obj._hex_hash).with_suffix(f".{ext}").replace(
-            dest_path.with_suffix(f".{ext}")
-        )
+        stem = str(getattr(tex_obj, "_active_output_stem", tex_obj._hex_hash))
+        Path(stem).with_suffix(f".{ext}").replace(dest_path)
 
 
 def render_jinja(tex_obj, ns) -> None:
@@ -104,6 +96,7 @@ def run_latex(
     rasterize: bool = False,
     full_err: bool = False,
     keep_temp: bool = False,
+    output_stem: str | None = None,
     save_image: str | None = None,
     dpi: int = 96,
     grayscale: bool = False,
@@ -111,8 +104,10 @@ def run_latex(
     save_tikz: str | None = None,
     save_pdf: str | None = None,
 ) -> Image | SVG | None:
+    stem = validate_output_stem(output_stem or tex_obj._hex_hash)
+    tex_obj._active_output_stem = stem
     try:
-        tex_path = Path().resolve() / f"{tex_obj._hex_hash}.tex"
+        tex_path = Path().resolve() / f"{stem}.tex"
         tex_path.write_text(tex_obj.full_latex, encoding="utf-8")
 
         tex_command = [tex_program]
@@ -173,3 +168,5 @@ def run_latex(
         return image
     finally:
         tex_obj._clearup_latex_garbage(keep_temp)
+        if hasattr(tex_obj, "_active_output_stem"):
+            delattr(tex_obj, "_active_output_stem")

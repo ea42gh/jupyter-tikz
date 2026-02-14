@@ -16,12 +16,10 @@ def _args_table():
     """
     This macro generates a table of the command line arguments
     """
-    table = dedent(
-        """
+    table = dedent("""
     | Argument | Description |
     | -------- | ----------- |
-    """
-    )
+    """)
     for arg, params in jupyter_tikz._ARGS.items():
         type = params.get("type", str).__name__
         short = params.get("short-arg", arg)

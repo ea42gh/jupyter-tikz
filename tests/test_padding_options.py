@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import math
-
 import sys
 from pathlib import Path
-
 
 # Allow running tests from a source checkout without installing the package.
 _ROOT = Path(__file__).resolve().parents[1]
@@ -29,7 +27,12 @@ def test_normalize_padding_tuple_lrtb():
 
 def test_normalize_padding_dict_mixed():
     # x applies to left/right unless overridden; y applies to top/bottom unless overridden.
-    assert normalize_padding({"x": 5, "y": 6, "left": 1, "top": 2}) == (1.0, 5.0, 2.0, 6.0)
+    assert normalize_padding({"x": 5, "y": 6, "left": 1, "top": 2}) == (
+        1.0,
+        5.0,
+        2.0,
+        6.0,
+    )
 
 
 def test_normalize_padding_length_strings():

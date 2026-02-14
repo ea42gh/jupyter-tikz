@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import pytest
 
+from jupyter_tikz.errors import InvalidToolchainError
 from jupyter_tikz.executor import build_commands
-from jupyter_tikz.toolchains import TOOLCHAINS
+from jupyter_tikz.toolchains import TOOLCHAINS, check_toolchain, check_toolchains
 
 
 @pytest.mark.parametrize(
@@ -17,7 +18,9 @@ from jupyter_tikz.toolchains import TOOLCHAINS
         ("xelatex_dvisvgm", False, True),
     ],
 )
-def test_registry_contains_expected_toolchains(name: str, needs_pdf: bool, needs_dvi: bool):
+def test_registry_contains_expected_toolchains(
+    name: str, needs_pdf: bool, needs_dvi: bool
+):
     tc = TOOLCHAINS[name]
     assert tc.name == name
     assert tc.needs_pdf is needs_pdf
@@ -37,7 +40,9 @@ def test_registry_contains_expected_toolchains(name: str, needs_pdf: bool, needs
         ("xelatex_dvisvgm", ".dvi"),
     ],
 )
-def test_build_commands_wires_expected_inputs(name: str, expected_suffix: str, tmp_path):
+def test_build_commands_wires_expected_inputs(
+    name: str, expected_suffix: str, tmp_path
+):
     # build_commands is a pure function; we validate wiring without invoking TeX.
     tc = TOOLCHAINS[name]
     tex_file = tmp_path / "job.tex"
@@ -54,7 +59,9 @@ def test_build_commands_wires_expected_inputs(name: str, expected_suffix: str, t
     # DVI as a positional argument.
     if svg_cmd[0] == "dvisvgm":
         assert svg_cmd[-1].endswith(expected_suffix)
-        assert any(arg.startswith("--output=") and arg.endswith("job.svg") for arg in svg_cmd)
+        assert any(
+            arg.startswith("--output=") and arg.endswith("job.svg") for arg in svg_cmd
+        )
         assert any(arg.startswith("--page=") for arg in svg_cmd)
     else:
         assert svg_cmd[-2].endswith(expected_suffix)
@@ -64,3 +71,17 @@ def test_build_commands_wires_expected_inputs(name: str, expected_suffix: str, t
         # -singlefile for SVG outputs.
         if svg_cmd[0] == "pdftocairo":
             assert "-singlefile" not in svg_cmd
+
+
+def test_check_toolchain_unknown_raises():
+    with pytest.raises(InvalidToolchainError):
+        check_toolchain("nope")
+
+
+def test_check_toolchains_includes_registry_keys(monkeypatch):
+    import jupyter_tikz.toolchains as tc_mod
+
+    monkeypatch.setattr(tc_mod.shutil, "which", lambda _cmd: "/bin/fake")
+    report = check_toolchains()
+    assert sorted(report.keys()) == sorted(TOOLCHAINS.keys())
+    assert all(v["available"] for v in report.values())

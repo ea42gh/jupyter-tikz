@@ -1,10 +1,12 @@
 import shutil
-import pytest
 from pathlib import Path
+
+import pytest
 
 from jupyter_tikz import render_svg
 from jupyter_tikz.executor import resolve_toolchain_name
 from jupyter_tikz.svg_normalize import normalize_svg
+
 
 @pytest.mark.needs_latex
 def test_render_svg_basic_golden():

@@ -12,6 +12,7 @@ CanvasFrameSpec = Union[bool, Mapping[str, Any], None]
 @dataclass(frozen=True)
 class CanvasFrame:
     """Style options for a canvas frame drawn around the SVG canvas."""
+
     stroke: str = "#000000"
     stroke_width: float = 1.0
     fill: str = "none"
@@ -84,7 +85,7 @@ def _parse_viewbox(vb: str) -> Tuple[float, float, float, float]:
     return float(parts[0]), float(parts[1]), float(parts[2]), float(parts[3])
 
 
-def normalize_canvas_frame(frame: CanvasFrameSpec) -> CanvasFrame | None:
+def normalize_canvas_frame(frame: CanvasFrameSpec | CanvasFrame) -> CanvasFrame | None:
     """Normalize `frame` input into a CanvasFrame object, or None if disabled."""
     if not frame:
         return None
@@ -127,7 +128,9 @@ def _frame_rect_svg(x: float, y: float, w: float, h: float, frame: CanvasFrame) 
     return f'<g id="jupyter_tikz_canvas_frame"><rect {attr_str} /></g>'
 
 
-def apply_canvas_frame_to_svg_text(svg_text: str, frame: CanvasFrameSpec) -> str:
+def apply_canvas_frame_to_svg_text(
+    svg_text: str, frame: CanvasFrameSpec | CanvasFrame
+) -> str:
     """
     Inject a <rect> framing the SVG canvas.
 
@@ -184,7 +187,13 @@ def apply_canvas_frame_to_svg_text(svg_text: str, frame: CanvasFrameSpec) -> str
     tag = m_open.group(0)
     if tag.endswith("/>"):
         new_open = tag[:-2] + ">"
-        return svg_text[: m_open.start()] + new_open + rect + "</svg>" + svg_text[m_open.end() :]
+        return (
+            svg_text[: m_open.start()]
+            + new_open
+            + rect
+            + "</svg>"
+            + svg_text[m_open.end() :]
+        )
 
     return svg_text
 

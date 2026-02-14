@@ -1,5 +1,6 @@
 import os
 import shutil
+
 import pytest
 
 from jupyter_tikz.executor import render_svg
@@ -24,4 +25,3 @@ def test_render_svg_basic():
 
     assert "<svg" in svg
     assert "</svg>" in svg
-

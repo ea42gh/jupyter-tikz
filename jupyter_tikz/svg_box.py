@@ -1,28 +1,33 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Mapping, Tuple
 
-import re
-
-
 # -------------------------------------------------------------------------------------------------
 # Padding type + normalization
 # -------------------------------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class Padding:
     """
     Padding in SVG user units (same coordinate system as viewBox).
     """
+
     left: float = 0.0
     right: float = 0.0
     top: float = 0.0
     bottom: float = 0.0
 
     def is_zero(self) -> bool:
-        return self.left == 0.0 and self.right == 0.0 and self.top == 0.0 and self.bottom == 0.0
+        return (
+            self.left == 0.0
+            and self.right == 0.0
+            and self.top == 0.0
+            and self.bottom == 0.0
+        )
 
     # Back-compat: allow tuple-like usage and comparisons.
     def __iter__(self):
@@ -40,7 +45,12 @@ class Padding:
     def __eq__(self, other: object) -> bool:
         if isinstance(other, (tuple, list)) and len(other) == 4:
             try:
-                ol, or_, ot, ob = (float(other[0]), float(other[1]), float(other[2]), float(other[3]))
+                ol, or_, ot, ob = (
+                    float(other[0]),
+                    float(other[1]),
+                    float(other[2]),
+                    float(other[3]),
+                )
             except Exception:
                 return False
             return (
@@ -336,4 +346,3 @@ def apply_padding_to_svg_file(svg_path: Path, padding: Padding) -> None:
 
 # Backwards-compat alias (some tests/imports refer to this name)
 apply_viewbox_padding = apply_padding_to_svg_text
-

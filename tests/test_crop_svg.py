@@ -1,5 +1,6 @@
 import os
 import shutil
+
 import pytest
 
 from jupyter_tikz.executor import render_svg
@@ -26,4 +27,3 @@ def test_render_svg_with_cropping():
 
     assert "<svg" in svg
     assert "width" in svg or "viewBox" in svg
-

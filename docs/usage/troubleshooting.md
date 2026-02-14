@@ -23,6 +23,27 @@ latexmk -v
 pdftocairo -v
 ```
 
+You can also run built-in diagnostics from a notebook to inspect toolchain
+resolution and discovered executable paths:
+
+```python
+%tikz --diagnose
+```
+
+JSON output:
+
+```python
+%tikz --diagnose --json
+```
+
+`--json` must be used with `--diagnose`; `%tikz --json` alone is rejected.
+
+To diagnose one specific toolchain:
+
+```python
+%tikz --diagnose --toolchain=xelatex_pdftocairo
+```
+
 If `pdftocairo` is installed but not in `PATH`, configure it explicitly:
 
 ```python

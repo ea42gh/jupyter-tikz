@@ -231,7 +231,11 @@ def test_run_latex__valid_tex_program(
     path = Path().resolve() / ANY_CODE_HASH
 
     if tex_args:
-        expected_command = [tex_program, *tex_args.split(), str(path.with_suffix(".tex"))]
+        expected_command = [
+            tex_program,
+            *tex_args.split(),
+            str(path.with_suffix(".tex")),
+        ]
     else:
         expected_command = [tex_program, str(path.with_suffix(".tex"))]
 
@@ -550,23 +554,12 @@ def test_run_latex_bat_input_full_err(monkeypatch, tmpdir, capsys):
             "pdflatex",
             "--enable-write18 --extra-mem-top=10000000 --extra-mem-bot=10000000",
         ),
-        ("lualatex", ""),
+        pytest.param("lualatex", "", marks=pytest.mark.needs_lualatex),
     ],
 )
 def test_run_latex_custom_tex_command(monkeypatch, tmpdir, texprogram, texargs):
     # Arrange
     monkeypatch.chdir(tmpdir)
-    if texprogram == "lualatex":
-        probe = Path("lualatex_probe.tex")
-        probe.write_text("\\documentclass{article}\\begin{document}x\\end{document}")
-        preflight = subprocess.run(
-            ["lualatex", "-interaction=nonstopmode", str(probe)],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-        if preflight.returncode != 0:
-            pytest.skip("lualatex is installed but unusable in this environment")
 
     # Act
     tex_document = TexDocument(EXAMPLE_GOOD_TEX)
@@ -575,6 +568,12 @@ def test_run_latex_custom_tex_command(monkeypatch, tmpdir, texprogram, texargs):
 
     assert isinstance(res, display.SVG)
     assert expected_res in str(res.data)
+
+
+def test_run_latex_invalid_output_stem_raises():
+    tex_document = TexDocument(EXAMPLE_GOOD_TEX)
+    with pytest.raises(ValueError, match="output_stem"):
+        tex_document.run_latex(output_stem="../bad")
 
 
 @pytest.mark.needs_latex

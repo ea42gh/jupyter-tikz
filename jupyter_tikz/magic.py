@@ -1,17 +1,18 @@
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Literal
+from typing import cast
 
 from IPython import display
 from IPython.core.magic import Magics, line_cell_magic, magics_class, needs_local_scope
 from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
-from IPython.display import Image, SVG
+from IPython.display import SVG, Image
 
 from .args import (
     _EXTRAS_CONFLITS_ERR,
@@ -20,20 +21,14 @@ from .args import (
     _apply_args,
     _remove_wrapping_quotes,
 )
+from .errors import InvalidOutputStemError, InvalidPathError, InvalidToolchainError
 from .executor import RenderError, render_svg_with_artifacts
 from .legacy_render import _tail_lines
 from .models import TexDocument, TexFragment
-
-
-def _resolve_save_dest(dest: str, ext: Literal["tikz", "tex", "png", "svg", "pdf"]) -> Path:
-    dest_path = Path(dest)
-    if os.environ.get("JUPYTER_TIKZ_SAVEDIR"):
-        dest_path = Path(str(os.environ.get("JUPYTER_TIKZ_SAVEDIR"))) / dest_path
-    dest_path = dest_path.resolve()
-    if dest_path.suffix != f".{ext}":
-        dest_path = dest_path.with_suffix(dest_path.suffix + f".{ext}")
-    dest_path.parent.mkdir(parents=True, exist_ok=True)
-    return dest_path
+from .naming import validate_output_stem
+from .paths import validate_user_output_path
+from .save_paths import resolve_save_destination
+from .toolchains import TOOLCHAINS, check_toolchain, check_toolchains
 
 
 @magics_class
@@ -50,6 +45,15 @@ class TikZMagics(Magics):
         return None
 
     def _resolve_executor_toolchain(self) -> str | None:
+        explicit = (self.args.get("toolchain") or "").strip()
+        if explicit:
+            if explicit not in TOOLCHAINS:
+                raise InvalidToolchainError(
+                    f"Unknown toolchain: {explicit}. "
+                    f"Available: {', '.join(sorted(TOOLCHAINS.keys()))}"
+                )
+            return explicit
+
         tex_program = (self.args.get("tex_program") or "pdflatex").lower().strip()
         if self.args.get("tex_args"):
             return None
@@ -58,6 +62,29 @@ class TikZMagics(Magics):
         if tex_program == "xelatex":
             return "xelatex_pdftocairo"
         return None
+
+    def _print_toolchain_diagnostics(self) -> None:
+        explicit = (self.args.get("toolchain") or "").strip()
+        rows = (
+            [check_toolchain(explicit)]
+            if explicit
+            else list(check_toolchains().values())
+        )
+        if self.args.get("json"):
+            payload = {
+                "requested_toolchain": explicit or None,
+                "toolchains": rows,
+            }
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return
+        print("jupyter_tikz toolchain diagnostics:")
+        for row in rows:
+            ok = "ok" if row["available"] else "missing"
+            print(
+                f"- {row['name']}: {ok} | "
+                f"{row['latex_bin']}={row['latex_path'] or 'NOT FOUND'} | "
+                f"{row['svg_bin']}={row['svg_path'] or 'NOT FOUND'}"
+            )
 
     @staticmethod
     def _print_err(msg: str, full_err: bool) -> None:
@@ -78,7 +105,9 @@ class TikZMagics(Magics):
             return None
         if keep_temp_arg is True:
             return Path().resolve()
-        path = Path(str(keep_temp_arg)).expanduser()
+        path = validate_user_output_path(
+            str(keep_temp_arg), field_name="keep-temp directory"
+        ).expanduser()
         if not path.is_absolute():
             path = Path().resolve() / path
         path.mkdir(parents=True, exist_ok=True)
@@ -117,9 +146,20 @@ class TikZMagics(Magics):
         return True
 
     def _render_with_executor(self) -> Image | SVG | None:
-        toolchain_name = self._resolve_executor_toolchain()
+        try:
+            toolchain_name = self._resolve_executor_toolchain()
+        except InvalidToolchainError as exc:
+            self._print_err(str(exc), True)
+            return None
         keep_temp_arg = self.args["keep_temp"]
         keep_temp = bool(keep_temp_arg)
+        try:
+            output_stem = validate_output_stem(
+                self.args.get("output_stem") or self.tex_obj._hex_hash
+            )
+        except InvalidOutputStemError as exc:
+            self._print_err(str(exc), True)
+            return None
         if toolchain_name is None:
             return self.tex_obj.run_latex(
                 tex_program=self.args["tex_program"],
@@ -127,6 +167,7 @@ class TikZMagics(Magics):
                 rasterize=self.args["rasterize"],
                 full_err=self.args["full_err"],
                 keep_temp=keep_temp,
+                output_stem=output_stem,
                 save_tikz=self.args["save_tikz"],
                 save_tex=self.args["save_tex"],
                 save_pdf=self.args["save_pdf"],
@@ -134,8 +175,6 @@ class TikZMagics(Magics):
                 dpi=self.args["dpi"],
                 grayscale=self.args["gray"],
             )
-
-        output_stem = self.tex_obj._hex_hash
 
         def _run_in(workdir: Path) -> Image | SVG | None:
             try:
@@ -145,27 +184,36 @@ class TikZMagics(Magics):
                     toolchain_name=toolchain_name,
                     output_stem=output_stem,
                 )
-            except (RenderError, ValueError) as exc:
+            except (
+                RenderError,
+                InvalidToolchainError,
+                InvalidOutputStemError,
+                InvalidPathError,
+            ) as exc:
                 self._print_err(str(exc), self.args["full_err"])
                 return None
 
-            if self.args["save_tex"]:
-                shutil.copy2(
-                    artifacts.tex_path,
-                    _resolve_save_dest(self.args["save_tex"], "tex"),
-                )
+            try:
+                if self.args["save_tex"]:
+                    shutil.copy2(
+                        artifacts.tex_path,
+                        resolve_save_destination(self.args["save_tex"], "tex"),
+                    )
 
-            if self.args["save_pdf"] and artifacts.pdf_path is not None:
-                shutil.copy2(
-                    artifacts.pdf_path,
-                    _resolve_save_dest(self.args["save_pdf"], "pdf"),
-                )
+                if self.args["save_pdf"] and artifacts.pdf_path is not None:
+                    shutil.copy2(
+                        artifacts.pdf_path,
+                        resolve_save_destination(self.args["save_pdf"], "pdf"),
+                    )
 
-            if self.args["save_tikz"] and self.tex_obj.tikz_code:
-                _resolve_save_dest(self.args["save_tikz"], "tikz").write_text(
-                    self.tex_obj.tikz_code,
-                    encoding="utf-8",
-                )
+                if self.args["save_tikz"] and self.tex_obj.tikz_code:
+                    resolve_save_destination(self.args["save_tikz"], "tikz").write_text(
+                        self.tex_obj.tikz_code,
+                        encoding="utf-8",
+                    )
+            except InvalidPathError as exc:
+                self._print_err(str(exc), True)
+                return None
 
             if self.args["rasterize"]:
                 if artifacts.pdf_path is None:
@@ -184,21 +232,34 @@ class TikZMagics(Magics):
                     return None
 
                 if self.args["save_image"]:
-                    shutil.copy2(
-                        png_path,
-                        _resolve_save_dest(self.args["save_image"], "png"),
-                    )
+                    try:
+                        shutil.copy2(
+                            png_path,
+                            resolve_save_destination(self.args["save_image"], "png"),
+                        )
+                    except InvalidPathError as exc:
+                        self._print_err(str(exc), True)
+                        return None
                 return display.Image(filename=str(png_path))
 
             svg_text = artifacts.read_svg(strip_xml_declaration=False)
             if self.args["save_image"]:
-                shutil.copy2(
-                    artifacts.svg_path,
-                    _resolve_save_dest(self.args["save_image"], "svg"),
-                )
+                try:
+                    assert artifacts.svg_path is not None
+                    shutil.copy2(
+                        artifacts.svg_path,
+                        resolve_save_destination(self.args["save_image"], "svg"),
+                    )
+                except InvalidPathError as exc:
+                    self._print_err(str(exc), True)
+                    return None
             return display.SVG(data=svg_text)
 
-        keep_temp_workdir = self._resolve_keep_temp_workdir(keep_temp_arg)
+        try:
+            keep_temp_workdir = self._resolve_keep_temp_workdir(keep_temp_arg)
+        except InvalidPathError as exc:
+            self._print_err(str(exc), True)
+            return None
         if keep_temp_workdir is not None:
             return _run_in(keep_temp_workdir)
         with tempfile.TemporaryDirectory(prefix="jupyter_tikz_") as tmp:
@@ -223,32 +284,47 @@ class TikZMagics(Magics):
             or self.args["pgfplots_libraries"]
         ):
             print(_EXTRAS_CONFLITS_ERR, file=sys.stderr)
-            return
+            return None
 
         if (self.args["implicit_pic"] and self.args["full_document"]) or (
             (self.args["implicit_pic"] or self.args["full_document"])
             and self.args["input_type"] != "standalone-document"
         ):
             print(_INPUT_TYPE_CONFLIT_ERR, file=sys.stderr)
-            return
+            return None
 
         if self.args["print_jinja"] and self.args["print_tex"]:
             print(_PRINT_CONFLICT_ERR, file=sys.stderr)
-            return
+            return None
 
+        if self.args["json"] and not self.args["diagnose"]:
+            print("`--json` can only be used with `--diagnose`.", file=sys.stderr)
+            return None
+
+        if self.args["diagnose"]:
+            try:
+                self._print_toolchain_diagnostics()
+            except InvalidToolchainError as exc:
+                print(str(exc), file=sys.stderr)
+            return None
+
+        resolved_input_type: str | None
         if self.args["implicit_pic"]:
-            self.input_type = "tikzpicture"
+            resolved_input_type = "tikzpicture"
         elif self.args["full_document"]:
-            self.input_type = "full-document"
+            resolved_input_type = "full-document"
         else:
-            self.input_type = self._get_input_type(self.args["input_type"])
-        if self.input_type is None:
+            resolved_input_type = self._get_input_type(
+                cast(str, self.args["input_type"])
+            )
+        if resolved_input_type is None:
             print(
                 f'`{self.args["input_type"]}` is not a valid input type.',
                 "Valid input types are `full-document`, `standalone-document`, or `tikzpicture`.",
                 file=sys.stderr,
             )
-            return
+            return None
+        self.input_type = resolved_input_type
 
         self.src = cell or ""
         local_ns = local_ns or {}
@@ -256,7 +332,7 @@ class TikZMagics(Magics):
         if cell is None:
             if self.args["code"] is None:
                 print('Use "%tikz?" for help', file=sys.stderr)
-                return
+                return None
 
             if self.args["code"] not in local_ns:
                 self.src = self.args["code"]

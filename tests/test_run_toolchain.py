@@ -1,10 +1,11 @@
 import os
 import shutil
-import pytest
 from dataclasses import is_dataclass
 
-from jupyter_tikz.toolchains import TOOLCHAINS
+import pytest
+
 from jupyter_tikz.executor import ExecutionResult, run_toolchain
+from jupyter_tikz.toolchains import TOOLCHAINS
 
 
 @pytest.mark.needs_latex

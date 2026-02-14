@@ -8,7 +8,9 @@ import pytest
 def test_render_svg_keeps_artifacts_on_failure(monkeypatch):
     import jupyter_tikz.executor as ex
 
-    def fake_run_toolchain_in_dir(toolchain, tex_source, workdir, output_stem, **kwargs):
+    def fake_run_toolchain_in_dir(
+        toolchain, tex_source, workdir, output_stem, **kwargs
+    ):
         workdir.mkdir(parents=True, exist_ok=True)
         (workdir / f"{output_stem}.tex").write_text(tex_source)
         (workdir / f"{output_stem}.stderr.txt").write_text("boom\n")
@@ -49,7 +51,9 @@ def test_render_svg_keeps_artifacts_on_failure(monkeypatch):
 def test_render_svg_with_artifacts_includes_diagnostics_tail(monkeypatch, tmp_path):
     import jupyter_tikz.executor as ex
 
-    def fake_run_toolchain_in_dir(toolchain, tex_source, workdir, output_stem, **kwargs):
+    def fake_run_toolchain_in_dir(
+        toolchain, tex_source, workdir, output_stem, **kwargs
+    ):
         workdir.mkdir(parents=True, exist_ok=True)
         (workdir / f"{output_stem}.tex").write_text(tex_source)
         (workdir / f"{output_stem}.stderr.txt").write_text("boom\n")
@@ -87,7 +91,9 @@ def test_render_svg_with_artifacts_includes_diagnostics_tail(monkeypatch, tmp_pa
 def test_render_base_svg_uncached_includes_full_diagnostics(monkeypatch, tmp_path):
     import jupyter_tikz.executor as ex
 
-    def fake_run_toolchain_in_dir(toolchain, tex_source, workdir, output_stem, **kwargs):
+    def fake_run_toolchain_in_dir(
+        toolchain, tex_source, workdir, output_stem, **kwargs
+    ):
         workdir.mkdir(parents=True, exist_ok=True)
         (workdir / f"{output_stem}.tex").write_text(tex_source)
         (workdir / f"{output_stem}.stderr.txt").write_text("boom\n")

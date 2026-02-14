@@ -12,7 +12,7 @@ _PRINT_CONFLICT_ERR = (
 _INPUT_TYPE_CONFLIT_ERR = "You cannot use `--implicit-pic`, `--full-document` or/and `-as=<input_type>` at the same time."
 
 
-_ARGS = {
+_ARGS: dict[str, dict[str, Any]] = {
     "input-type": {
         "short-arg": "as",
         "dest": "input_type",
@@ -131,6 +131,35 @@ _ARGS = {
         "desc": "Keep temporary files; optionally provide an output directory",
         "example": "`-k` or `-k=outputs/tmp`",
     },
+    "toolchain": {
+        "short-arg": "tc",
+        "dest": "toolchain",
+        "type": str,
+        "default": None,
+        "desc": "Explicit executor toolchain name",
+        "example": "`--toolchain=pdftex_pdftocairo`",
+    },
+    "diagnose": {
+        "short-arg": "dg",
+        "dest": "diagnose",
+        "type": bool,
+        "desc": "Print toolchain diagnostics and skip rendering",
+    },
+    "json": {
+        "short-arg": "j",
+        "aliases": ["-json"],
+        "dest": "json",
+        "type": bool,
+        "desc": "Use JSON output with `--diagnose`",
+    },
+    "output-stem": {
+        "short-arg": "os",
+        "dest": "output_stem",
+        "type": str,
+        "default": None,
+        "desc": "Output stem for temporary/kept artifact filenames",
+        "example": "`--output-stem=my_render`",
+    },
     "tex-program": {
         "short-arg": "tp",
         "dest": "tex_program",
@@ -196,7 +225,7 @@ _ARGS = {
 }
 
 
-def _get_arg_params(arg: str) -> tuple[tuple[str, str], dict[str, Any]]:
+def _get_arg_params(arg: str) -> tuple[tuple[str, ...], dict[str, Any]]:
     def get_arg_help(arg: str) -> str:
         help_text = _ARGS[arg]["desc"].replace("<br>", " ")
         if _ARGS[arg].get("example"):
@@ -208,16 +237,20 @@ def _get_arg_params(arg: str) -> tuple[tuple[str, str], dict[str, Any]]:
         help_text += "."
         return help_text
 
-    args = (f"-{_ARGS[arg]['short-arg']}", f"--{arg}")
+    option_strings = [f"-{_ARGS[arg]['short-arg']}", f"--{arg}"]
+    aliases = _ARGS[arg].get("aliases")
+    if aliases:
+        option_strings.extend(list(aliases))
+    args = tuple(option_strings)
     kwargs = {"dest": _ARGS[arg]["dest"]}
-    if _ARGS[arg]["type"] == bool:
+    if _ARGS[arg]["type"] is bool:
         kwargs["action"] = "store_true"
         kwargs["default"] = False
     elif _ARGS[arg]["type"] == "bool_or_str":
         kwargs["nargs"] = "?"
         kwargs["const"] = True
         kwargs["default"] = _ARGS[arg]["default"]
-    elif _ARGS[arg]["type"] == str:
+    elif _ARGS[arg]["type"] is str:
         kwargs["default"] = _ARGS[arg]["default"]
     else:
         kwargs["type"] = _ARGS[arg]["type"]

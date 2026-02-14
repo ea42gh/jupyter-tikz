@@ -16,10 +16,10 @@ from jupyter_tikz.toolchains import TOOLCHAINS
 
 def test_strip_svg_xml_declaration_removes_prolog_and_doctype():
     raw = (
-        "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\n"
-        "<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.1//EN\" "
-        "\"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd\">\n"
-        "<svg viewBox=\"0 0 10 10\"></svg>\n"
+        '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n'
+        '<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" '
+        '"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\n'
+        '<svg viewBox="0 0 10 10"></svg>\n'
     )
     out = strip_svg_xml_declaration(raw)
     assert out.lstrip().startswith("<svg")
@@ -30,8 +30,8 @@ def test_strip_svg_xml_declaration_removes_prolog_and_doctype():
 def test_render_artifacts_read_svg_strips_by_default(tmp_path: Path):
     svg_path = tmp_path / "output.svg"
     svg_path.write_text(
-        "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\n"
-        "<svg viewBox=\"0 0 10 10\"></svg>\n"
+        '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n'
+        '<svg viewBox="0 0 10 10"></svg>\n'
     )
     tex_path = tmp_path / "output.tex"
     tex_path.write_text("% dummy")
@@ -74,8 +74,8 @@ def test_run_toolchain_strip_xml_declaration_toggle(monkeypatch):
         # Simulate the converter emitting an SVG with an XML prolog.
         out_svg = workdir / "output.svg"
         out_svg.write_text(
-            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\n"
-            "<svg viewBox=\"0 0 10 10\"></svg>\n"
+            '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n'
+            '<svg viewBox="0 0 10 10"></svg>\n'
         )
         return P(0)
 
@@ -114,8 +114,8 @@ def test_render_svg_strip_xml_declaration_toggle(monkeypatch, tmp_path: Path):
         stderr_path = workdir / f"{output_stem}.stderr.txt"
         tex_path.write_text(tex_source)
         svg_path.write_text(
-            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\n"
-            "<svg viewBox=\"0 0 10 10\"></svg>\n"
+            '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n'
+            '<svg viewBox="0 0 10 10"></svg>\n'
         )
         stdout_path.write_text("")
         stderr_path.write_text("")

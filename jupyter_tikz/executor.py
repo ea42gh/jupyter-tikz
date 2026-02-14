@@ -12,12 +12,23 @@ from hashlib import md5
 from pathlib import Path
 from typing import List, Literal, Optional, Tuple, Union
 
+from jupyter_tikz.canvas_frame import (
+    apply_canvas_frame_to_svg_file,
+    apply_canvas_frame_to_svg_text,
+)
 from jupyter_tikz.crop import crop_svg_inplace
-from jupyter_tikz.svg_box import Padding, normalize_padding, apply_padding_to_svg_file, apply_padding_to_svg_text
-from jupyter_tikz.canvas_frame import apply_canvas_frame_to_svg_file, apply_canvas_frame_to_svg_text
-from jupyter_tikz.toolchains import Toolchain, TOOLCHAINS
+from jupyter_tikz.errors import InvalidToolchainError
+from jupyter_tikz.naming import validate_output_stem
+from jupyter_tikz.paths import validate_user_output_path
+from jupyter_tikz.svg_box import (
+    Padding,
+    apply_padding_to_svg_file,
+    apply_padding_to_svg_text,
+    normalize_padding,
+)
+from jupyter_tikz.toolchains import TOOLCHAINS, Toolchain
 
-#from typing import Sequence
+# from typing import Sequence
 
 # =======================================================================================================
 _XML_DECL_RE = re.compile(r"^\ufeff?\s*<\?xml[^>]*\?>\s*", re.IGNORECASE | re.DOTALL)
@@ -110,6 +121,7 @@ def _format_toolchain_failure(
         f"{log_tail}"
     )
 
+
 def build_commands(
     toolchain: Toolchain,
     tex_file: Path,
@@ -167,6 +179,8 @@ def build_commands(
         return cmds
 
     return cmds
+
+
 # -------------------------------------------------------------------------------------------------------------------
 
 
@@ -219,7 +233,9 @@ def _find_svg_output_path(workdir: Path, output_stem: str) -> Path | None:
     return sorted(unnumbered or matches, key=lambda p: p.name)[0]
 
 
-def _canonicalize_svg_output_path(workdir: Path, output_stem: str, found: Path | None) -> Path | None:
+def _canonicalize_svg_output_path(
+    workdir: Path, output_stem: str, found: Path | None
+) -> Path | None:
     """Ensure the primary SVG artifact is available at ``{output_stem}.svg``.
 
     Some converters (notably pdftocairo) may emit numbered page suffix outputs
@@ -300,9 +316,8 @@ def _run_toolchain_in_dir(
     stdout_path.write_text("".join(stdout_chunks))
     stderr_path.write_text("".join(stderr_chunks))
 
-    pdf_path = workdir / f"{output_stem}.pdf"
-    if not pdf_path.exists():
-        pdf_path = None
+    pdf_candidate = workdir / f"{output_stem}.pdf"
+    pdf_path: Path | None = pdf_candidate if pdf_candidate.exists() else None
 
     svg_path = _canonicalize_svg_output_path(
         workdir,
@@ -311,7 +326,11 @@ def _run_toolchain_in_dir(
     )
     if svg_path is not None and svg_path.exists():
         # Tight-crop post-processing is only used for PDF-based converters.
-        if enforce_tight_crop and crop_mode == "tight" and (not toolchain.svg_cmd or toolchain.svg_cmd[0] != "dvisvgm"):
+        if (
+            enforce_tight_crop
+            and crop_mode == "tight"
+            and (not toolchain.svg_cmd or toolchain.svg_cmd[0] != "dvisvgm")
+        ):
             crop_svg_inplace(svg_path)
 
         # Padding is deterministic and toolchain-agnostic.
@@ -329,6 +348,8 @@ def _run_toolchain_in_dir(
         stderr_path=stderr_path,
         returncodes=returncodes,
     )
+
+
 # -------------------------------------------------------------------------------------------------------------------
 def render_svg_with_artifacts(
     tex_source: str,
@@ -346,8 +367,9 @@ def render_svg_with_artifacts(
     Returns paths to .tex/.pdf/.svg and captured stdout/stderr.
     """
     resolved_toolchain = resolve_toolchain_name(toolchain_name)
+    output_stem = validate_output_stem(output_stem)
     if resolved_toolchain not in TOOLCHAINS:
-        raise ValueError(f"Unknown toolchain: {resolved_toolchain}")
+        raise InvalidToolchainError(f"Unknown toolchain: {resolved_toolchain}")
 
     tc = TOOLCHAINS[resolved_toolchain]
     crop_mode, enforce_tight_crop = resolve_crop_policy(crop, tc)
@@ -375,8 +397,7 @@ def render_svg_with_artifacts(
 
     if artifacts.svg_path is None:
         raise RenderError(
-            "SVG output not produced.\n"
-            f"Artifacts kept at: {Path(output_dir)}."
+            "SVG output not produced.\n" f"Artifacts kept at: {Path(output_dir)}."
         )
 
     if frame and artifacts.svg_path is not None:
@@ -390,6 +411,7 @@ def _resolve_artifacts_target(
     *,
     output_stem: str,
     artifacts_path: Optional[Union[str, os.PathLike]] = None,
+    artifacts_prefix: Optional[Union[str, os.PathLike]] = None,
 ) -> Tuple[Path, str, bool]:
     """Resolve (workdir, stem, cleanup_on_success) for render_svg.
 
@@ -397,25 +419,34 @@ def _resolve_artifacts_target(
     -----
     - If ``artifacts_path`` is None: create a temp directory and clean it up on success.
       On failure the temp directory is *kept* and the exception message includes its path.
-    - If ``artifacts_path`` is a directory: write artifacts into that directory and
-      use a unique stem ``{output_stem}-{md5(tex)[:8]}``.
-    - Otherwise: treat ``artifacts_path`` as a *prefix* (no extension) and write
-      artifacts as ``{prefix}.tex/.svg/...``.
+    - If ``artifacts_prefix`` is set: treat it as an explicit file prefix and
+      write artifacts as ``{prefix}.tex/.svg/...``.
+    - If ``artifacts_path`` is set: treat it as an artifacts directory (created
+      if needed) and use a unique stem ``{output_stem}-{md5(tex)[:8]}``.
     """
 
+    safe_stem = validate_output_stem(output_stem)
+
     if artifacts_path is None:
+        if artifacts_prefix is not None:
+            p = validate_user_output_path(
+                artifacts_prefix, field_name="artifacts_prefix"
+            )
+            validate_output_stem(p.name)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            return p.parent, p.name, False
         workdir = Path(tempfile.mkdtemp(prefix="jupyter_tikz_"))
         cleanup_on_success = os.environ.get("JUPYTER_TIKZ_KEEP_TEMP") != "1"
-        return workdir, str(output_stem), cleanup_on_success
+        return workdir, safe_stem, cleanup_on_success
 
-    p = Path(artifacts_path)
-    if p.exists() and p.is_dir():
-        h8 = md5(tex_source.encode("utf-8")).hexdigest()[:8]
-        return p, f"{output_stem}-{h8}", False
+    if artifacts_prefix is not None:
+        raise ValueError("Use only one of artifacts_path or artifacts_prefix")
 
-    # Prefix path (ensure parent exists).
-    p.parent.mkdir(parents=True, exist_ok=True)
-    return p.parent, p.name, False
+    p = validate_user_output_path(artifacts_path, field_name="artifacts_path")
+    p.mkdir(parents=True, exist_ok=True)
+    h8 = md5(tex_source.encode("utf-8")).hexdigest()[:8]
+    return p, f"{safe_stem}-{h8}", False
+
 
 @dataclass(frozen=True)
 class ExecutionResult:
@@ -431,6 +462,8 @@ class ExecutionResult:
     @property
     def stderr_text(self) -> str:
         return "".join(self.stderr)
+
+
 # -------------------------------------------------------------------------------------------------------------------
 def run_toolchain(
     toolchain: Toolchain,
@@ -443,6 +476,7 @@ def run_toolchain(
     exact_bbox: bool = False,
     strip_xml_declaration: bool = True,
 ) -> ExecutionResult:
+    output_stem = validate_output_stem(output_stem)
     returncodes = []
     stdout = []
     stderr = []
@@ -468,7 +502,7 @@ def run_toolchain(
         for cmd in commands:
             proc = subprocess.run(
                 cmd,
-                cwd=str(workdir),              # ← str() is correct
+                cwd=str(workdir),  # ← str() is correct
                 env=run_env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -487,7 +521,11 @@ def run_toolchain(
             _find_svg_output_path(workdir, output_stem),
         )
         if svg_path is not None and svg_path.exists():
-            if enforce_tight_crop and crop_mode == "tight" and (not toolchain.svg_cmd or toolchain.svg_cmd[0] != "dvisvgm"):
+            if (
+                enforce_tight_crop
+                and crop_mode == "tight"
+                and (not toolchain.svg_cmd or toolchain.svg_cmd[0] != "dvisvgm")
+            ):
                 crop_svg_inplace(svg_path)
             if not pad.is_zero():
                 apply_padding_to_svg_file(svg_path, pad)
@@ -504,9 +542,13 @@ def run_toolchain(
         stderr=stderr,
         svg_text=svg_text,
     )
+
+
 # =======================================================================================================
 class RenderError(RuntimeError):
     pass
+
+
 # -------------------------------------------------------------------------------------------------------------------
 @dataclass(frozen=True)
 class RenderArtifacts:
@@ -523,6 +565,8 @@ class RenderArtifacts:
             raise RenderError("SVG output not produced")
         txt = self.svg_path.read_text(errors="replace")
         return strip_svg_xml_declaration(txt) if strip_xml_declaration else txt
+
+
 # -------------------------------------------------------------------------------------------------------------------
 def render_svg(
     tex_source: str,
@@ -534,6 +578,7 @@ def render_svg(
     frame=None,
     exact_bbox: bool = False,
     artifacts_path: Optional[Union[str, os.PathLike]] = None,
+    artifacts_prefix: Optional[Union[str, os.PathLike]] = None,
     cache: bool = True,
     strip_xml_declaration: bool = True,
 ) -> str:
@@ -549,22 +594,25 @@ def render_svg(
     build directory; the exception message will include the path.
     """
     resolved_toolchain = resolve_toolchain_name(toolchain_name)
+    output_stem = validate_output_stem(output_stem)
     if resolved_toolchain not in TOOLCHAINS:
-        raise ValueError(f"Unknown toolchain: {resolved_toolchain}")
+        raise InvalidToolchainError(f"Unknown toolchain: {resolved_toolchain}")
 
     tc = TOOLCHAINS[resolved_toolchain]
     # When the caller asks to persist artifacts, caching would bypass writing
     # .tex/.svg/.stdout/.stderr files.
-    if artifacts_path is not None:
+    if artifacts_path is not None or artifacts_prefix is not None:
         cache = False
     crop_mode, enforce_tight_crop = resolve_crop_policy(crop, tc)
     pad = normalize_padding(padding)
 
     def _maybe_strip(svg_text: str) -> str:
-        return strip_svg_xml_declaration(svg_text) if strip_xml_declaration else svg_text
+        return (
+            strip_svg_xml_declaration(svg_text) if strip_xml_declaration else svg_text
+        )
 
     # In-memory cache only applies when we are not asked to write artifacts.
-    if cache and artifacts_path is None and pad.is_zero():
+    if cache and artifacts_path is None and artifacts_prefix is None and pad.is_zero():
         base = _render_base_svg_cached(
             tex_source,
             resolved_toolchain,
@@ -577,7 +625,12 @@ def render_svg(
             base = apply_canvas_frame_to_svg_text(base, frame)
         return _maybe_strip(base)
 
-    if cache and artifacts_path is None and (not pad.is_zero()):
+    if (
+        cache
+        and artifacts_path is None
+        and artifacts_prefix is None
+        and (not pad.is_zero())
+    ):
         base = _render_base_svg_cached(
             tex_source,
             resolved_toolchain,
@@ -595,6 +648,7 @@ def render_svg(
         tex_source,
         output_stem=output_stem,
         artifacts_path=artifacts_path,
+        artifacts_prefix=artifacts_prefix,
     )
 
     ok = False
@@ -611,10 +665,14 @@ def render_svg(
         )
 
         if not artifacts.returncodes or artifacts.returncodes[-1] != 0:
-            raise RenderError(_format_toolchain_failure(artifacts, workdir=workdir, output_stem=stem))
+            raise RenderError(
+                _format_toolchain_failure(artifacts, workdir=workdir, output_stem=stem)
+            )
 
         if artifacts.svg_path is None:
-            raise RenderError(f"SVG output not produced.\nArtifacts kept at: {workdir}.")
+            raise RenderError(
+                f"SVG output not produced.\nArtifacts kept at: {workdir}."
+            )
 
         if frame and artifacts.svg_path is not None:
             apply_canvas_frame_to_svg_file(artifacts.svg_path, frame)
@@ -666,7 +724,6 @@ def _env_truthy(name: str) -> bool:
     return v.strip().lower() in {"1", "true", "yes", "on"}
 
 
-
 def set_default_toolchain_name(toolchain_name: str | None) -> None:
     """Set a process-wide default toolchain name (no environment variables required).
 
@@ -674,7 +731,6 @@ def set_default_toolchain_name(toolchain_name: str | None) -> None:
     """
     global _DEFAULT_TOOLCHAIN_OVERRIDE
     _DEFAULT_TOOLCHAIN_OVERRIDE = toolchain_name
-
 
 
 def resolve_toolchain_name(toolchain_name: str | None) -> str:
@@ -697,7 +753,11 @@ def resolve_toolchain_name(toolchain_name: str | None) -> str:
     if env:
         return env
 
-    candidates = _FAST_DEFAULT_TOOLCHAIN_CANDIDATES if _env_truthy("JUPYTER_TIKZ_FAST_DEFAULTS") else _DEFAULT_TOOLCHAIN_CANDIDATES
+    candidates = (
+        _FAST_DEFAULT_TOOLCHAIN_CANDIDATES
+        if _env_truthy("JUPYTER_TIKZ_FAST_DEFAULTS")
+        else _DEFAULT_TOOLCHAIN_CANDIDATES
+    )
     for cand in candidates:
         tc = TOOLCHAINS.get(cand)
         if not tc:
@@ -710,8 +770,6 @@ def resolve_toolchain_name(toolchain_name: str | None) -> str:
 
     # Last resort: stable fallback.
     return next(iter(TOOLCHAINS.keys()))
-
-
 
 
 def resolve_crop_policy(
@@ -757,6 +815,7 @@ def resolve_crop_mode(
     crop_mode, _enforce = resolve_crop_policy(crop, toolchain)
     return crop_mode
 
+
 _CACHE_MAXSIZE = int(os.environ.get("JUPYTER_TIKZ_CACHE_SIZE", "64"))
 _CACHE: "OrderedDict[tuple[str, str, str, bool, bool, bool, str], str]" = OrderedDict()
 _CACHE_LOCK = threading.Lock()
@@ -789,7 +848,15 @@ def _render_base_svg_cached(
         and (shutil.which("inkscape") is not None)
     )
     tex_key = md5(tex_source.encode("utf-8")).hexdigest()
-    key = (toolchain_name, output_stem, crop_mode, enforce_tight_crop, exact_bbox, inkscape_variant, tex_key)
+    key = (
+        toolchain_name,
+        output_stem,
+        crop_mode,
+        enforce_tight_crop,
+        exact_bbox,
+        inkscape_variant,
+        tex_key,
+    )
 
     with _CACHE_LOCK:
         if key in _CACHE:

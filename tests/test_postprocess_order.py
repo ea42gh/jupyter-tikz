@@ -17,14 +17,20 @@ def _fake_subprocess_run_factory(output_stem: str):
 
     def _svg_output_arg(cmd: Sequence[str]) -> Optional[str]:
         for arg in cmd:
-            if isinstance(arg, str) and arg.startswith("--output=") and arg.endswith(".svg"):
+            if (
+                isinstance(arg, str)
+                and arg.startswith("--output=")
+                and arg.endswith(".svg")
+            ):
                 return arg.split("=", 1)[1]
         for arg in cmd:
             if isinstance(arg, str) and arg.endswith(".svg") and "=" not in arg:
                 return arg
         return None
 
-    def fake_run(cmd, cwd=None, env=None, stdout=None, stderr=None, text=None, timeout=None):
+    def fake_run(
+        cmd, cwd=None, env=None, stdout=None, stderr=None, text=None, timeout=None
+    ):
         workdir = Path(cwd) if cwd else Path(".")
         # Always create placeholder build outputs that downstream code expects.
         (workdir / f"{output_stem}.log").write_text("log")
@@ -35,7 +41,9 @@ def _fake_subprocess_run_factory(output_stem: str):
         if svg_rel:
             svg_path = workdir / svg_rel
             svg_path.parent.mkdir(parents=True, exist_ok=True)
-            svg_path.write_text('<svg viewBox="0 0 10 10" width="10" height="10"></svg>')
+            svg_path.write_text(
+                '<svg viewBox="0 0 10 10" width="10" height="10"></svg>'
+            )
 
         class P:
             returncode = 0

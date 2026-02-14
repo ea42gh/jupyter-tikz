@@ -7,12 +7,11 @@ import subprocess
 from pathlib import Path
 from typing import Any, Optional, Sequence, Tuple, Union
 
-
 # ======================================================================================
 # Inkscape tight-crop (in-place)
 # ======================================================================================
 
-#def _debug_enabled() -> bool:
+# def _debug_enabled() -> bool:
 #    return os.environ.get("JUPYTER_TIKZ_DEBUG") == "1"
 
 
@@ -89,19 +88,19 @@ def _find_working_inkscape() -> Optional[str]:
     _WORKING_INKSCAPE_CHECKED = True
     candidates = _inkscape_candidates()
 
-    #if _debug_enabled():
+    # if _debug_enabled():
     #    print("[crop] inkscape candidates:", candidates)
 
     for path in candidates:
         p = Path(path)
         if _is_probably_recursive_wrapper(p):
-            #if _debug_enabled():
+            # if _debug_enabled():
             #    print(f"[crop] skipping probable recursive wrapper: {path}")
             continue
 
         if _run_ok([path, "--version"], timeout_s=2.0):
             _WORKING_INKSCAPE = path
-            #if _debug_enabled():
+            # if _debug_enabled():
             #    try:
             #        v = subprocess.check_output([path, "--version"], text=True).strip()
             #        print(f"[crop] selected inkscape: {path}")
@@ -110,11 +109,11 @@ def _find_working_inkscape() -> Optional[str]:
             #        print(f"[crop] selected inkscape: {path} (version read failed)")
             return _WORKING_INKSCAPE
 
-        #if _debug_enabled():
+        # if _debug_enabled():
         #    print(f"[crop] candidate failed --version: {path}")
 
     _WORKING_INKSCAPE = None
-    #if _debug_enabled():
+    # if _debug_enabled():
     #    print("[crop] no working inkscape found")
     return None
 
@@ -129,7 +128,7 @@ def crop_svg_inplace(svg_path: Path) -> bool:
 
     inkscape = _find_working_inkscape()
     if inkscape is None:
-        #if _debug_enabled():
+        # if _debug_enabled():
         #    print("[crop] inkscape not available/working; skipping crop")
         return False
 
@@ -154,7 +153,13 @@ def crop_svg_inplace(svg_path: Path) -> bool:
             "--export-overwrite",
         ],
         # 0.9x style
-        [inkscape, "-z", str(svg_path), "--export-area-drawing", f"--export-svg={svg_path}"],
+        [
+            inkscape,
+            "-z",
+            str(svg_path),
+            "--export-area-drawing",
+            f"--export-svg={svg_path}",
+        ],
         [inkscape, str(svg_path), "--export-area-drawing", f"--export-svg={svg_path}"],
     ]
 
@@ -169,12 +174,12 @@ def crop_svg_inplace(svg_path: Path) -> bool:
                 timeout=30.0,
             )
         except Exception as e:
-            #if _debug_enabled():
+            # if _debug_enabled():
             #    print("[crop] exec exception:", repr(e))
             #    print("[crop] cmd:", " ".join(cmd))
             continue
 
-        #if _debug_enabled():
+        # if _debug_enabled():
         #    print("[crop] cmd:", " ".join(cmd))
         #    print("[crop] rc:", proc.returncode)
         #    if proc.stderr:
@@ -186,12 +191,12 @@ def crop_svg_inplace(svg_path: Path) -> bool:
 
         after = svg_path.read_bytes()
         changed = after != before
-        #if _debug_enabled():
+        # if _debug_enabled():
         #    print("[crop] changed:", changed)
         if changed:
             return True
 
-    #if _debug_enabled():
+    # if _debug_enabled():
     #    print("[crop] failed to crop; last stderr tail:", (last_stderr or "")[-800:])
     return False
 
@@ -350,7 +355,7 @@ def apply_viewbox_padding(svg_or_path: Union[str, Path], padding: Any) -> str:
     nw = w + l + r
     nh = h + t + b
 
-    new_vb = f'{_fmt_num(nx0)} {_fmt_num(ny0)} {_fmt_num(nw)} {_fmt_num(nh)}'
+    new_vb = f"{_fmt_num(nx0)} {_fmt_num(ny0)} {_fmt_num(nw)} {_fmt_num(nh)}"
 
     if m:
         out = _VIEWBOX_RE.sub(lambda _: f'viewBox="{new_vb}"', svg_text, count=1)
@@ -366,4 +371,3 @@ def apply_viewbox_padding(svg_or_path: Union[str, Path], padding: Any) -> str:
     if svg_path is not None:
         svg_path.write_text(out)
     return out
-

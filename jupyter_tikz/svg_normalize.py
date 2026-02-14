@@ -1,7 +1,7 @@
 import re
 
 _ID_RE = re.compile(r"\sid=(['\"])[^'\"]+\1")
-_METADATA_RE = re.compile(r'<metadata[\s\S]*?</metadata>', re.IGNORECASE)
+_METADATA_RE = re.compile(r"<metadata[\s\S]*?</metadata>", re.IGNORECASE)
 _COMMENT_RE = re.compile(r"<!--[\s\S]*?-->")
 _HREF_RE = re.compile(r"\s(?:xlink:href|href)\s*=\s*(['\"])#[^'\"]+\1")
 _URL_REF_ATTR_RE = re.compile(r"\s[\w:-]+\s*=\s*(['\"])url\(#.*?\)\1")

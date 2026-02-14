@@ -10,11 +10,32 @@ All notable changes to this project are presented below.
 - Standardized uncached-render failures to include the same stderr/log diagnostic tails as artifact-based failures.
 - Refactored monolithic `jupyter_tikz.py` into focused internal modules (`args`, `models`, `magic`, `legacy_render`) with backward-compatible facade exports.
 - Extended `-k`/`--keep-temp` to accept an optional output directory (e.g., `-k=outputs/tmp`) while preserving existing `-k` behavior.
+- Made artifact retention paths consistent: `artifacts_path` now means directory retention, and `artifacts_prefix` provides explicit prefix-based naming.
+- Added explicit `--toolchain=<name>` magic option with validation, and diagnostic reporting via `--diagnose`.
+- `%tikz --json` now requires `--diagnose` (invalid standalone usage is rejected with a clear error).
+- Added typed public validation errors for invalid toolchain/path/output-stem inputs and wired them across magic/executor paths.
+- Hardened `render_svg_with_artifacts(...)` by validating `output_stem` with the same filename safety rules as `render_svg(...)`.
+- Consolidated save-destination validation/resolution into a shared helper used by both magic and legacy save paths.
+
+**🚨 Breaking Changes (vs `main`)**
+
+- `%tikz --json` now requires `--diagnose`; standalone `%tikz --json` is rejected.
+- Magic defaults for `-tp=pdflatex` and `-tp=xelatex` now use the executor/toolchain path.
+- User-provided output paths reject relative `..` segments for safer write behavior.
 
 **📚 Docs**
 
 - Updated installation and troubleshooting guides to document `latexmk` and toolchain PATH requirements.
 - Added notes to the magic usage guide explaining `--tex-program` toolchain mapping and legacy fallback behavior.
+- Added concise option-precedence and migration-cookbook sections to README and docs index.
+- Added notebook snippets showing expected invalid-path validation errors.
+
+**🧪 Tests / CI**
+
+- Added help-text snapshot tests to detect `%tikz?` argument drift.
+- Added diagnostics JSON contract tests for stable machine-readable output shape.
+- Added a cross-platform (Linux/Windows) CI validation job for argument/diagnostics/validation tests.
+- Added CI enforcement for stricter lint and type checks (`ruff` and a focused `mypy` subset on core modules).
 
 ## v0.5.6
 

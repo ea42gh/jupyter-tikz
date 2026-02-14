@@ -40,6 +40,26 @@ hide:
 
 {% include "templates/basic-usage.md" %}
 
+## Option precedence
+
+| If you provide... | Selected rendering path |
+| --- | --- |
+| `--toolchain=<name>` | Executor with that exact toolchain |
+| no `--toolchain`, `-tp=pdflatex`, no `--tex-args` | Executor `pdftex_pdftocairo` |
+| no `--toolchain`, `-tp=xelatex`, no `--tex-args` | Executor `xelatex_pdftocairo` |
+| no `--toolchain`, `-tp=lualatex` | Legacy `TexDocument.run_latex` |
+| any `--tex-args` (without explicit `--toolchain`) | Legacy `TexDocument.run_latex` |
+
+## Migration cookbook (`main` -> current)
+
+| Common pattern in `main` | Use now |
+| --- | --- |
+| `render_svg(..., artifacts_path="out/demo")` (prefix-style path) | `render_svg(..., artifacts_prefix="out/demo")` |
+| `%tikz --json` | `%tikz --diagnose --json` (or `%tikz -dg -j`) |
+| Catching generic toolchain/path/stem `ValueError` only | Optionally catch typed errors: `InvalidToolchainError`, `InvalidPathError`, `InvalidOutputStemError` |
+| `%tikz -tp=pdflatex` expected legacy path behavior | Expect executor default (`pdftex_pdftocairo`) unless you force legacy via custom `--tex-args` or other engine |
+| relative `..` in output targets (e.g. `--keep-temp ../tmp`) | Use a local/safe path (e.g. `--keep-temp outputs/tmp`) or an absolute path |
+
 ## Next steps
 
 Choose the following links to continue your journey:

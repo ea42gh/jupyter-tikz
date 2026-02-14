@@ -142,6 +142,44 @@ from jupyter_tikz.jupyter_tikz import _get_arg_params, _remove_wrapping_quotes
                 "help": "Keep temporary files; optionally provide an output directory, e.g., `-k` or `-k=outputs/tmp`.",
             },
         ),
+        (
+            "toolchain",
+            ("-tc", "--toolchain"),
+            {
+                "dest": "toolchain",
+                "default": None,
+                "help": "Explicit executor toolchain name, e.g., `--toolchain=pdftex_pdftocairo`.",
+            },
+        ),
+        (
+            "diagnose",
+            ("-dg", "--diagnose"),
+            {
+                "dest": "diagnose",
+                "action": "store_true",
+                "default": False,
+                "help": "Print toolchain diagnostics and skip rendering.",
+            },
+        ),
+        (
+            "json",
+            ("-j", "--json", "-json"),
+            {
+                "dest": "json",
+                "action": "store_true",
+                "default": False,
+                "help": "Use JSON output with `--diagnose`.",
+            },
+        ),
+        (
+            "output-stem",
+            ("-os", "--output-stem"),
+            {
+                "dest": "output_stem",
+                "default": None,
+                "help": "Output stem for temporary/kept artifact filenames, e.g., `--output-stem=my_render`.",
+            },
+        ),
     ],
 )
 def test_get_arg_params(arg, expected_args, expected_kwargs):

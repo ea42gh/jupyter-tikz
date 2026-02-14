@@ -7,7 +7,8 @@ used by this suite (``spy`` and ``patch.object``).
 
 We also:
   * register custom markers used throughout the suite, and
-  * gate toolchain-dependent tests via ``needs_latex`` / ``needs_pdftocairo``.
+  * gate toolchain-dependent tests via ``needs_latex`` / ``needs_pdftocairo`` /
+    ``needs_lualatex``.
 
 The gating is *opt-out* (tests run when the relevant binaries are available).
 """
@@ -39,7 +40,6 @@ if str(_PKG_ROOT) not in sys.path:
     sys.path.insert(0, str(_PKG_ROOT))
 
 from jupyter_tikz import TexDocument
-
 
 # ---------------------------------------------------------------------------
 # Stable sample inputs used by multiple tests
@@ -218,6 +218,12 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default=None,
         help="Path to pdftocairo executable (overrides PATH lookup).",
     )
+    group.addoption(
+        "--lualatex",
+        action="store",
+        default=None,
+        help="Path to lualatex executable (overrides PATH lookup).",
+    )
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -228,6 +234,10 @@ def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line(
         "markers",
         "needs_pdftocairo: requires pdftocairo in PATH (or --pdftocairo / env override)",
+    )
+    config.addinivalue_line(
+        "markers",
+        "needs_lualatex: requires a working lualatex engine",
     )
 
 
@@ -250,8 +260,10 @@ def pytest_runtest_setup(item: pytest.Item) -> None:
     if item.config.getoption("--skip-render-tests") or os.getenv(
         "JUPYTER_TIKZ_SKIP_RENDER_TESTS"
     ) in {"1", "true", "TRUE", "yes", "YES"}:
-        if item.get_closest_marker("needs_latex") or item.get_closest_marker(
-            "needs_pdftocairo"
+        if (
+            item.get_closest_marker("needs_latex")
+            or item.get_closest_marker("needs_pdftocairo")
+            or item.get_closest_marker("needs_lualatex")
         ):
             pytest.skip("render/toolchain tests skipped")
 
@@ -272,3 +284,38 @@ def pytest_runtest_setup(item: pytest.Item) -> None:
         )
         if pdftocairo is None:
             pytest.skip("pdftocairo not found")
+
+    if item.get_closest_marker("needs_lualatex"):
+        import subprocess
+        import tempfile
+
+        lualatex = _which_with_override(
+            cli_override=item.config.getoption("--lualatex"),
+            env_var="JUPYTER_TIKZ_LUALATEXPATH",
+            default_cmd="lualatex",
+        )
+        if lualatex is None:
+            pytest.skip("lualatex not found")
+
+        probe_key = "_jupyter_tikz_lualatex_probe_ok"
+        cached = getattr(item.config, probe_key, None)
+        if cached is None:
+            with tempfile.TemporaryDirectory(prefix="jupyter_tikz_lua_probe_") as tmp:
+                probe = Path(tmp) / "probe.tex"
+                probe.write_text(
+                    "\\documentclass{article}\\begin{document}ok\\end{document}",
+                    encoding="utf-8",
+                )
+                proc = subprocess.run(
+                    [lualatex, "-interaction=nonstopmode", str(probe.name)],
+                    cwd=tmp,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    check=False,
+                )
+                cached = proc.returncode == 0
+            setattr(item.config, probe_key, cached)
+
+        if not cached:
+            pytest.skip("lualatex is installed but unusable in this environment")

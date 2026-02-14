@@ -7,7 +7,7 @@ from string import Template
 from textwrap import dedent, indent
 from typing import Any, Literal, Sequence
 
-from IPython.display import Image, SVG
+from IPython.display import SVG, Image
 
 from .args import _EXTRAS_CONFLITS_ERR
 from .legacy_render import render_jinja, run_command, run_latex, save_artifact
@@ -80,7 +80,8 @@ class TexDocument:
 
     def _clearup_latex_garbage(self, keep_temp) -> None:
         if not keep_temp:
-            files = Path().glob(f"{self._hex_hash}.*")
+            stem = str(getattr(self, "_active_output_stem", self._hex_hash))
+            files = Path().glob(f"{stem}.*")
             for file in files:
                 if file.exists():
                     file.unlink()
@@ -105,6 +106,7 @@ class TexDocument:
         rasterize: bool = False,
         full_err: bool = False,
         keep_temp: bool = False,
+        output_stem: str | None = None,
         save_image: str | None = None,
         dpi: int = 96,
         grayscale: bool = False,
@@ -119,6 +121,7 @@ class TexDocument:
             rasterize=rasterize,
             full_err=full_err,
             keep_temp=keep_temp,
+            output_stem=output_stem,
             save_image=save_image,
             dpi=dpi,
             grayscale=grayscale,

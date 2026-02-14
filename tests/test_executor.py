@@ -1,8 +1,12 @@
 import os
 from pathlib import Path
 
+import pytest
+
 import jupyter_tikz.executor as ex
+from jupyter_tikz.errors import InvalidOutputStemError, InvalidToolchainError
 from jupyter_tikz.executor import _find_svg_output_path, build_commands
+from jupyter_tikz.naming import validate_output_stem
 from jupyter_tikz.toolchains import TOOLCHAINS
 
 
@@ -62,3 +66,31 @@ def test_build_subprocess_env_can_disable_cwd_injection(monkeypatch):
     env = ex._build_subprocess_env(source_cwd=Path("repo/notebooks").resolve())
 
     assert env["TEXINPUTS"] == "foo"
+
+
+def test_validate_output_stem_rejects_pathlike_values():
+    bad = ["", "  ", "../x", "x/y", "x\\y", ".", "..", "x y", "@bad"]
+    for stem in bad:
+        try:
+            validate_output_stem(stem)
+            assert False, f"expected ValueError for {stem!r}"
+        except ValueError:
+            pass
+
+
+def test_render_svg_with_artifacts_rejects_invalid_output_stem(tmp_path):
+    with pytest.raises(InvalidOutputStemError):
+        ex.render_svg_with_artifacts(
+            r"\documentclass{standalone}\begin{document}x\end{document}",
+            output_dir=tmp_path,
+            output_stem="../bad",
+        )
+
+
+def test_render_svg_rejects_unknown_toolchain():
+    with pytest.raises(InvalidToolchainError):
+        ex.render_svg(
+            r"\documentclass{standalone}\begin{document}x\end{document}",
+            toolchain_name="nope",
+            cache=False,
+        )

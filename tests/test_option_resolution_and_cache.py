@@ -3,7 +3,7 @@ import pytest
 
 def test_resolve_crop_mode_defaults():
     from jupyter_tikz.executor import resolve_crop_mode
-    from jupyter_tikz.toolchains import PDFTEX_PDFTOCAIRO, PDFTEX_DVISVGM
+    from jupyter_tikz.toolchains import PDFTEX_DVISVGM, PDFTEX_PDFTOCAIRO
 
     # Legacy default (no env var): tight across toolchains to preserve historical outputs.
     assert resolve_crop_mode(None, PDFTEX_PDFTOCAIRO) == "tight"
@@ -12,13 +12,9 @@ def test_resolve_crop_mode_defaults():
     assert resolve_crop_mode("page", PDFTEX_DVISVGM) == "page"
 
 
-
-
-
-
 def test_resolve_crop_policy_distinguishes_default_vs_explicit():
     from jupyter_tikz.executor import resolve_crop_policy
-    from jupyter_tikz.toolchains import PDFTEX_PDFTOCAIRO, PDFTEX_DVISVGM
+    from jupyter_tikz.toolchains import PDFTEX_DVISVGM, PDFTEX_PDFTOCAIRO
 
     mode, enforce = resolve_crop_policy(None, PDFTEX_PDFTOCAIRO)
     assert mode == "tight"
@@ -45,14 +41,22 @@ def test_padding_normalization_forms():
 
 def test_cache_separates_base_svg_from_padding(monkeypatch):
     """Changing padding should not re-run the base render."""
-    from jupyter_tikz import render_svg
     import jupyter_tikz.executor as ex
+    from jupyter_tikz import render_svg
 
     ex.clear_render_cache()
 
     calls = {"n": 0}
 
-    def fake_uncached(tex_source, toolchain_name, *, output_stem, crop_mode, enforce_tight_crop, exact_bbox):
+    def fake_uncached(
+        tex_source,
+        toolchain_name,
+        *,
+        output_stem,
+        crop_mode,
+        enforce_tight_crop,
+        exact_bbox,
+    ):
         calls["n"] += 1
         return '<svg viewBox="0 0 10 10"></svg>'
 
@@ -60,9 +64,23 @@ def test_cache_separates_base_svg_from_padding(monkeypatch):
 
     tex = "\\documentclass{article}\\begin{document}x\\end{document}"
 
-    svg1 = render_svg(tex, toolchain_name="pdftex_pdftocairo", crop="page", padding=0, cache=True)
-    svg2 = render_svg(tex, toolchain_name="pdftex_pdftocairo", crop="page", padding={"left": 2}, cache=True)
-    svg3 = render_svg(tex, toolchain_name="pdftex_pdftocairo", crop="page", padding={"left": 5}, cache=True)
+    svg1 = render_svg(
+        tex, toolchain_name="pdftex_pdftocairo", crop="page", padding=0, cache=True
+    )
+    svg2 = render_svg(
+        tex,
+        toolchain_name="pdftex_pdftocairo",
+        crop="page",
+        padding={"left": 2},
+        cache=True,
+    )
+    svg3 = render_svg(
+        tex,
+        toolchain_name="pdftex_pdftocairo",
+        crop="page",
+        padding={"left": 5},
+        cache=True,
+    )
 
     assert calls["n"] == 1
     assert 'viewBox="0.0 0.0 10.0 10.0"' in svg1 or 'viewBox="0 0 10 10"' in svg1
@@ -71,8 +89,8 @@ def test_cache_separates_base_svg_from_padding(monkeypatch):
 
 
 def test_cache_can_be_disabled(monkeypatch):
-    from jupyter_tikz import render_svg
     import jupyter_tikz.executor as ex
+    from jupyter_tikz import render_svg
 
     ex.clear_render_cache()
 
@@ -116,7 +134,11 @@ def test_cache_can_be_disabled(monkeypatch):
 
     tex = "\\documentclass{article}\\begin{document}x\\end{document}"
 
-    render_svg(tex, toolchain_name="pdftex_pdftocairo", crop="page", padding=0, cache=False)
-    render_svg(tex, toolchain_name="pdftex_pdftocairo", crop="page", padding=0, cache=False)
+    render_svg(
+        tex, toolchain_name="pdftex_pdftocairo", crop="page", padding=0, cache=False
+    )
+    render_svg(
+        tex, toolchain_name="pdftex_pdftocairo", crop="page", padding=0, cache=False
+    )
 
     assert calls["n"] == 2

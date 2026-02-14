@@ -42,6 +42,8 @@ black = "^24.4.2"
 taskipy = "^1.13.0"
 pytest-cov = "^5.0.0"
 pytest-mock = "^3.14.0"
+ruff = "^0.9.10"
+mypy = "^1.15.0"
 
 [tool.poetry.group.doc.dependencies]
 mkdocs = "~1.6.0"
@@ -55,6 +57,7 @@ mkdocs-material = {extras = ["imaging"], version = "^9.5.30"}
 markers = [
     "needs_latex: marks tests that require a LaTeX environment with the TikZ package installed.",
     "needs_pdftocairo: marks tests that require `pdftocairo` (Poppler) installed.",
+    "needs_lualatex: marks tests that require a working lualatex engine.",
 ]
 # addopts = '-m "not needs_latex and not needs_pdftocairo"'
 # addopts = "--no-cov"
@@ -62,9 +65,26 @@ markers = [
 [tool.isort]
 profile = "black"
 
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E9", "F", "I"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_unused_ignores = true
+
 [tool.taskipy.tasks]
-lint = "black . && isort ."
+fmt = "black jupyter_tikz tests && isort jupyter_tikz tests"
+lint = "task fmt"
+lint_check = "ruff check jupyter_tikz/args.py jupyter_tikz/errors.py jupyter_tikz/executor.py jupyter_tikz/magic.py jupyter_tikz/naming.py jupyter_tikz/paths.py jupyter_tikz/save_paths.py jupyter_tikz/toolchains.py"
+type_check = "mypy jupyter_tikz/args.py jupyter_tikz/errors.py jupyter_tikz/executor.py jupyter_tikz/magic.py jupyter_tikz/naming.py jupyter_tikz/paths.py jupyter_tikz/save_paths.py jupyter_tikz/toolchains.py"
 test = "pytest -vv --cov=jupyter_tikz"
 post_test = "coverage lcov"
+ci_local = "task lint_check && task type_check && task test"
 readme = "python main.py"
 build = "task lint && task test && task readme && poetry build"

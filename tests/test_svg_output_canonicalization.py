@@ -12,7 +12,9 @@ class P:
         self.stderr = ""
 
 
-def test_render_svg_with_artifacts_canonicalizes_page_suffix(monkeypatch, tmp_path: Path):
+def test_render_svg_with_artifacts_canonicalizes_page_suffix(
+    monkeypatch, tmp_path: Path
+):
     """If the converter writes output-1.svg, we should still expose output.svg."""
 
     import subprocess
@@ -26,8 +28,8 @@ def test_render_svg_with_artifacts_canonicalizes_page_suffix(monkeypatch, tmp_pa
 
         # Simulate the converter emitting a page-suffixed SVG.
         (workdir / "output-1.svg").write_text(
-            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\n"
-            "<svg viewBox=\"0 0 10 10\"></svg>\n"
+            '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n'
+            '<svg viewBox="0 0 10 10"></svg>\n'
         )
         return P(0)
 

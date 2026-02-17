@@ -8,6 +8,7 @@ from .errors import (
     InvalidToolchainError,
     JupyterTikzError,
 )
+from .args import _ARGS
 from .executor import (
     RenderArtifacts,
     RenderError,
@@ -15,7 +16,8 @@ from .executor import (
     render_svg,
     render_svg_with_artifacts,
 )
-from .jupyter_tikz import _ARGS, TexDocument, TexFragment, TikZMagics
+from .magic import TikZMagics
+from .models import TexDocument, TexFragment
 from .toolchains import TOOLCHAINS, Toolchain, check_toolchain, check_toolchains
 
 

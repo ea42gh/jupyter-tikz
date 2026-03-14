@@ -87,6 +87,13 @@ def test__save_tikz_no_tikz(tmpdir, monkeypatch):
         tex_document._save("file", "tikz")
 
 
+def test__save_rejects_parent_ref_path(tmpdir, monkeypatch):
+    monkeypatch.chdir(tmpdir)
+    tex_document = TexDocument(EXAMPLE_GOOD_TEX)
+    with pytest.raises(ValueError, match="save destination"):
+        tex_document._save("../bad", "tikz")
+
+
 @pytest.mark.parametrize(**DESTINATIONS_TIKZ_PARAMETRIZE)
 def test__save_tikz_env_dest(tmpdir, monkeypatch, file_name, expected_file_name):
     # Arrange
@@ -102,6 +109,15 @@ def test__save_tikz_env_dest(tmpdir, monkeypatch, file_name, expected_file_name)
     # Assert
     assert expected_file.exists()
     assert Path(expected_file).read_text() == TIKZ_CODE
+
+
+def test__save_env_dest_blocks_escape(tmpdir, monkeypatch):
+    monkeypatch.chdir(tmpdir)
+    env_dir = tmpdir / "env_var_dir"
+    monkeypatch.setenv("JUPYTER_TIKZ_SAVEDIR", str(env_dir))
+    tex_document = TexDocument(EXAMPLE_GOOD_TEX)
+    with pytest.raises(ValueError, match="save destination must not contain"):
+        tex_document._save("../escape", "tikz")
 
 
 DESTINATIONS_OTHER_EXTS_PARAMETRIZE = {

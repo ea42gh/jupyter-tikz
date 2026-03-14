@@ -84,6 +84,10 @@ Finally, run LaTeX and display the output(1):
 
 1.  You can configure the output by passing options to `run_latex`. In this example, `save_image` and `save_tikz` were used.
 
+!!! note
+    This section describes the package API (`TexDocument.run_latex()` / `TexFragment.run_latex()`).
+    The magic API (`%%tikz` / `%tikz`) has a different default execution path: it uses toolchain mapping (`pdflatex`/`xelatex`) in the executor layer.
+
 ```python
 tex_document.run_latex(save_tikz="outputs/angle", save_image="outputs/angle")
 ```

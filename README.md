@@ -48,6 +48,7 @@
 Jupyter-TikZ is a Python (3.10+) and IPython Magics library. However, in order for Jupyter-TikZ to work properly, some non-Python dependencies need to be installed first:
 
 - LaTeX
+- latexmk
 - Poppler
 
 ### LaTeX
@@ -62,6 +63,16 @@ You can test if a LaTeX distribution is installed by using the following command
 
 ```latex
 pdflatex --version
+```
+
+### latexmk
+
+The default `%%tikz` / `%tikz` magic rendering path uses `latexmk` to compile TeX.
+
+Check if `latexmk` is available:
+
+```shell
+latexmk -v
 ```
 
 ### Poppler
@@ -109,6 +120,14 @@ custom_pdftocairo_path = os.path.join(
 )
 os.environ["JUPYTER_TIKZ_PDFTOCAIROPATH"] = custom_pdftocairo_path
 ```
+
+By default, executor-based rendering adds your current working directory to
+TeX's search path (`TEXINPUTS`). This allows relative inputs like
+`\input{grid.tikz}` and PGFPlots `table {data.tsv}` while still compiling in an
+isolated temporary directory. Set `JUPYTER_TIKZ_DISABLE_CWD_TEXINPUTS=1` to opt
+out.
+`-k`/`--keep-temp` is for retaining build artifacts (debugging), not for
+enabling relative file loading.
 
 ## Install Jupyter TikZ
 
@@ -218,7 +237,11 @@ All additional options are listed below:
 | `-d=<int>`<br>`--dpi=<int>` | DPI to use when rasterizing the image.<br>&nbsp;&nbsp;&nbsp;&nbsp;*Example:* `--dpi=300`.<br>&nbsp;&nbsp;&nbsp;&nbsp;*Defaults* to `-d=96`. |
 | `-g`<br>`--gray` | Set grayscale to the rasterized image. |
 | `-e`<br>`--full-err` | Print the full error message when an error occurs. |
-| `-k`<br>`--keep-temp` | Keep temporary files. |
+| `-k[=<dir>]`<br>`--keep-temp[=<dir>]` | Keep temporary files for debugging. Without a value, files are kept in the current directory; with a value, files are kept in the specified directory. |
+| `-os=<name>`<br>`--output-stem=<name>` | Override artifact filename stem used by `%tikz`/`%%tikz` execution and kept temp files (`[A-Za-z0-9][A-Za-z0-9._-]*`). |
+| `-tc=<name>`<br>`--toolchain=<name>` | Explicitly select executor toolchain.<br>&nbsp;&nbsp;&nbsp;&nbsp;*Example:* `--toolchain=xelatex_pdftocairo`.<br>&nbsp;&nbsp;&nbsp;&nbsp;*Defaults* to auto-resolution from `--tex-program`/environment. |
+| `-dg`<br>`--diagnose` | Print toolchain diagnostics and skip rendering. |
+| `-j`<br>`--json` | Use JSON diagnostics output. Must be combined with `--diagnose`; using `--json` alone returns an argument error. Legacy `-json` is still accepted. |
 | `-tp=<str>`<br>`--tex-program=<str>` | TeX program to use for compilation.<br>&nbsp;&nbsp;&nbsp;&nbsp;*Example:* `-tp=xelatex` or `-tp=lualatex`.<br>&nbsp;&nbsp;&nbsp;&nbsp;*Defaults* to `-tp=pdflatex`. |
 | `-ta=<str>`<br>`--tex-args=<str>` | Arguments to pass to the TeX program.<br>&nbsp;&nbsp;&nbsp;&nbsp;*Example:* `-ta "$tex_args_ipython_variable"`.<br>&nbsp;&nbsp;&nbsp;&nbsp;*Defaults* to None. |
 | `-nc`<br>`--no-compile` | Do not compile the TeX code. |
@@ -237,9 +260,86 @@ Contributions are welcome from everyone! Whether you're reporting bugs, submitti
 <li>If you're interested in developing the software further, please refer to <a href="https://jupyter-tikz.readthedocs.io/stable/about/development/">development guide</a>.</li>
 </ol>
 
+## Local quality commands
+
+To run the same quality gates used by CI:
+
+```bash
+make ci-local
+```
+
+Or run step-by-step:
+
+```bash
+make fmt
+make lint
+make type
+make test
+```
+
 # Changelog
 
 All notable changes to this project are presented below.
+
+## Migration notes (vs `main`)
+
+- `artifacts_path` is now directory-only in `render_svg(...)`.
+- If you used `artifacts_path` as a filename prefix in `main`, migrate to
+  `artifacts_prefix`.
+- `%tikz --json` now requires `--diagnose`.
+  `--json` alone is rejected and rendering is skipped.
+- Output-path validation is stricter for user-provided paths.
+  Relative `..` path segments are rejected for `--keep-temp`, save targets,
+  and `JUPYTER_TIKZ_SAVEDIR`-scoped writes.
+- Magic default routing changed for common engines.
+  `-tp=pdflatex` and `-tp=xelatex` now run through the executor/toolchain
+  path by default, which may change output details and dependency behavior.
+- Public validation now includes typed exceptions:
+  `InvalidToolchainError`, `InvalidOutputStemError`, `InvalidPathError`
+  (all are `ValueError` subclasses).
+- Toolchain/magic option precedence:
+  1. `--toolchain` (explicit executor toolchain)
+  2. `--tex-program` mapping (`pdflatex`/`xelatex`) when `--tex-args` is not set
+  3. legacy path for other engines or custom `--tex-args`
+
+## Option precedence
+
+| If you provide... | Selected rendering path |
+| --- | --- |
+| `--toolchain=<name>` | Executor with that exact toolchain |
+| no `--toolchain`, `-tp=pdflatex`, no `--tex-args` | Executor `pdftex_pdftocairo` |
+| no `--toolchain`, `-tp=xelatex`, no `--tex-args` | Executor `xelatex_pdftocairo` |
+| no `--toolchain`, `-tp=lualatex` | Legacy `TexDocument.run_latex` |
+| any `--tex-args` (without explicit `--toolchain`) | Legacy `TexDocument.run_latex` |
+
+## Migration cookbook (`main` -> current)
+
+| Common pattern in `main` | Use now |
+| --- | --- |
+| `render_svg(..., artifacts_path=\"out/demo\")` (prefix-style path) | `render_svg(..., artifacts_prefix=\"out/demo\")` |
+| `%tikz --json` | `%tikz --diagnose --json` (or `%tikz -dg -j`) |
+| catching generic toolchain/path/stem `ValueError` only | Optionally catch typed errors: `InvalidToolchainError`, `InvalidPathError`, `InvalidOutputStemError` |
+| `%tikz -tp=pdflatex` expected legacy path behavior | Expect executor default (`pdftex_pdftocairo`) unless you force legacy via custom `--tex-args` or other engine |
+| relative `..` in output targets (e.g. `--keep-temp ../tmp`) | Use a local/safe path (e.g. `--keep-temp outputs/tmp`) or an absolute path |
+
+## v0.5.8
+
+**✨ Improvements**
+
+- Magic rendering now uses the executor/toolchain pipeline by default for `pdflatex` and `xelatex`.
+- Hardened legacy command execution by switching from shell command strings to argument-vector subprocess calls.
+- Improved executor result typing with a dataclass-based `ExecutionResult` API.
+- Standardized uncached-render failures to include the same stderr/log diagnostic tails as artifact-based failures.
+- Refactored monolithic `jupyter_tikz.py` into focused internal modules (`args`, `models`, `magic`, `legacy_render`) with backward-compatible facade exports.
+- Added default CWD `TEXINPUTS` injection so relative TeX inputs/PGFPlots tables work in temp-build mode (opt out with `JUPYTER_TIKZ_DISABLE_CWD_TEXINPUTS=1`).
+- Extended `-k`/`--keep-temp` to accept an optional output directory (e.g., `-k=outputs/tmp`) while preserving existing `-k` behavior.
+- Made artifact retention paths consistent: `artifacts_path` now means directory retention, and `artifacts_prefix` provides explicit prefix-based naming.
+- Added explicit `--toolchain=<name>` magic option with validation, and diagnostic reporting via `--diagnose`.
+
+**📚 Docs**
+
+- Updated installation and troubleshooting guides to document `latexmk` and toolchain PATH requirements.
+- Added notes to the magic usage guide explaining `--tex-program` toolchain mapping and legacy fallback behavior.
 
 ## v0.5.6
 

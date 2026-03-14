@@ -35,7 +35,8 @@ Finally, if you forget the usage, as for help by typing `%tikz?`, or visit **add
 <pre>
 %tikz [-as INPUT_TYPE] [-i] [-f] [-p LATEX_PREAMBLE] [-t TEX_PACKAGES]
             [-nt] [-l TIKZ_LIBRARIES] [-lp PGFPLOTS_LIBRARIES] [-nj] [-pj]
-            [-pt] [-sc SCALE] [-r] [-d DPI] [-g] [-e] [-k] [-tp TEX_PROGRAM]
+            [-pt] [-sc SCALE] [-r] [-d DPI] [-g] [-e] [-k [KEEP_TEMP]]
+            [-os OUTPUT_STEM] [-tc TOOLCHAIN] [-dg] [-j] [-tp TEX_PROGRAM]
             [-ta TEX_ARGS] [-nc] [-s SAVE_TIKZ] [-st SAVE_TEX] [-sp SAVE_PDF]
             [-S SAVE_IMAGE] [-sv SAVE_VAR]
             [code]
@@ -102,7 +103,18 @@ options:
                         `--dpi=300`. Defaults to `-d=96`.
   -g, --gray            Set grayscale to the rasterized image.
   -e, --full-err        Print the full error message when an error occurs.
-  -k, --keep-temp       Keep temporary files.
+  -k [KEEP_TEMP], --keep-temp [KEEP_TEMP]
+                        Keep temporary files; optionally provide an output
+                        directory, e.g., `-k` or `-k=outputs/tmp`.
+  -os OUTPUT_STEM, --output-stem OUTPUT_STEM
+                        Output stem for temporary/kept artifact filenames,
+                        e.g., `--output-stem=my_render` (letters/digits plus
+                        `.`, `_`, `-`).
+  -tc TOOLCHAIN, --toolchain TOOLCHAIN
+                        Explicit executor toolchain name, e.g.,
+                        `--toolchain=pdftex_pdftocairo`.
+  -dg, --diagnose       Print toolchain diagnostics and skip rendering.
+  -j, --json, -json     Use JSON diagnostics output with `--diagnose`.
   -tp TEX_PROGRAM, --tex-program TEX_PROGRAM
                         TeX program to use for compilation, e.g.,
                         `-tp=xelatex` or `-tp=lualatex`. Defaults to
@@ -543,6 +555,13 @@ You can even save PDF files using the flag `-sp=<pdf_name.pdf>` or `--save-pdf=<
 
 You can load figures from a file using the LaTeX command `\input`.
 
+By default, `%%tikz` includes the current notebook working directory in the TeX
+search path (`TEXINPUTS`), so relative files like `\input{grid.tikz}` and
+PGFPlots `table {data.tsv}` resolve without requiring `-k`.
+Set `JUPYTER_TIKZ_DISABLE_CWD_TEXINPUTS=1` to opt out.
+`-k`/`--keep-temp` is for retaining build artifacts (debugging), not for
+enabling relative file loading.
+
 First, we are going to create a file named `grid.tikz`:
 
 ```latex
@@ -933,6 +952,15 @@ Reusing the preamble in the figure:
 
 You can change the TeX program using `-tp=<tex_program>` or `--tex-program=<tex_program>`:
 
+!!! note
+    By default, magic rendering uses the executor toolchain:
+    - `-tp=pdflatex` maps to the `pdftex_pdftocairo` toolchain.
+    - `-tp=xelatex` maps to the `xelatex_pdftocairo` toolchain.
+
+    These paths require `latexmk` and a PDF-to-SVG converter (by default, `pdftocairo`) available in `PATH`.
+
+    Other TeX programs (for example `lualatex`) or custom `--tex-args` use the legacy execution path.
+
 ```latex
 %%tikz -as=tikz -t=pgfplots -nt -tp=lualatex
 \begin{axis}[
@@ -945,6 +973,66 @@ You can change the TeX program using `-tp=<tex_program>` or `--tex-program=<tex_
 <div class="result" markdown>
 ![Another quadratic formula](../assets/tikz/another_quadratic.svg)
 </div>
+
+## Toolchain selection and diagnostics
+
+You can override automatic toolchain resolution with `--toolchain=<name>`:
+
+```latex
+%%tikz -as=t --toolchain=pdftex_dvisvgm
+\draw[thick, blue] (0,0) circle (1);
+```
+
+If you need to debug binary availability, run diagnostics without rendering:
+
+```python
+%tikz --diagnose
+```
+
+JSON diagnostics output is also available:
+
+```python
+%tikz --diagnose --json
+```
+
+`--json` is only valid together with `--diagnose`. If provided alone, `%tikz`
+prints an argument error and skips rendering.
+
+You can scope diagnostics to one toolchain:
+
+```python
+%tikz --diagnose --toolchain=xelatex_pdftocairo
+```
+
+This prints the detected executable paths for the LaTeX and SVG conversion
+steps and whether each toolchain is currently available.
+
+### Option precedence
+
+Rendering-path selection precedence is:
+
+1. `--toolchain=<name>`: explicit toolchain selection (executor path).
+2. If no explicit toolchain and no `--tex-args`:
+   `-tp=pdflatex` -> `pdftex_pdftocairo`, `-tp=xelatex` -> `xelatex_pdftocairo`.
+3. Otherwise, fallback to legacy execution path (`TexDocument.run_latex`), for
+   example `-tp=lualatex` or any custom `--tex-args`.
+
+### Migration note (vs `main`)
+
+- `artifacts_path` in the package API is now directory-only.
+- If you previously used `artifacts_path` as a filename prefix, migrate to
+  `artifacts_prefix`.
+- `%tikz --json` now requires `--diagnose`.
+  `--json` by itself is rejected and rendering is skipped.
+- User-provided output paths are validated more strictly.
+  Relative `..` segments are rejected for `--keep-temp`, save targets, and
+  `JUPYTER_TIKZ_SAVEDIR`-scoped writes.
+- For magic rendering, `-tp=pdflatex` and `-tp=xelatex` now default to the
+  executor/toolchain path, which may change output details and required
+  external binaries compared to legacy execution.
+- Public validation errors now include typed subclasses:
+  `InvalidToolchainError`, `InvalidOutputStemError`, `InvalidPathError`
+  (all subclass `ValueError`).
 
 ### Custom parameters
 
@@ -1005,7 +1093,7 @@ Transcript written on tikz.log.<br>
 
 ### Showing full error
 
-If you want to see the entire error message, you can use the `-e` (or `--full-error`) option:
+If you want to see the entire error message, you can use the `-e` (or `--full-err`) option:
 
 ```latex
 %%tikz -as=t -e
@@ -1242,7 +1330,7 @@ If you want to print the entire LaTeX string for any reason, you can use the `-p
 </div>
 
 
-Finally, you can keep the temporary files (LaTeX, PDF and image) for further investigation by using `-k` (or `--keep`). The file names are hex representation of hash of the full LaTeX code.
+Finally, you can keep the temporary files (LaTeX, PDF and image) for further investigation by using `-k` (or `--keep-temp`). The file names are hex representation of hash of the full LaTeX code. You can also send these files to a directory with `-k=outputs/tmp`.
 
 ```latex
 %%tikz -as=t -sc=2 -k

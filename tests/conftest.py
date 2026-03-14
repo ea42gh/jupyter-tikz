@@ -1,8 +1,49 @@
+"""Shared pytest fixtures for the jupyter_tikz test suite.
+
+The upstream project commonly uses the third-party ``pytest-mock`` plugin.
+To keep this repository's tests runnable in minimal environments, we provide
+an internal ``mocker`` fixture that implements the subset of functionality
+used by this suite (``spy`` and ``patch.object``).
+
+We also:
+  * register custom markers used throughout the suite, and
+  * gate toolchain-dependent tests via ``needs_latex`` / ``needs_pdftocairo`` /
+    ``needs_lualatex``.
+
+The gating is *opt-out* (tests run when the relevant binaries are available).
+"""
+
+from __future__ import annotations
+
+import sys
+from dataclasses import dataclass
 from hashlib import md5
+from pathlib import Path
+from typing import Any, Optional
 
 import pytest
 
+# ---------------------------------------------------------------------------
+# Ensure we import the *local checkout* of `jupyter_tikz`.
+#
+# Pytest's `--import-mode=importlib` can change how sys.path is constructed,
+# and many developers also have an older `jupyter_tikz` installed in
+# site-packages. Without this, test collection can accidentally import the
+# wrong package and fail with confusing ImportErrors.
+#
+# We insert the package root (the directory that contains the `jupyter_tikz/`
+# package directory) at the front of sys.path.
+# ---------------------------------------------------------------------------
+
+_PKG_ROOT = Path(__file__).resolve().parents[1]
+if str(_PKG_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PKG_ROOT))
+
 from jupyter_tikz import TexDocument
+
+# ---------------------------------------------------------------------------
+# Stable sample inputs used by multiple tests
+# ---------------------------------------------------------------------------
 
 EXAMPLE_BAD_TIKZ = "HELLO WORLD"
 
@@ -16,25 +57,21 @@ EXAMPLE_GOOD_TEX = r"""
 
 HASH_EXAMPLE_GOOD_TEX = md5(EXAMPLE_GOOD_TEX.strip().encode()).hexdigest()
 
-# LATEX_CODE = r"""\documentclass{standalone}
-# \usepackage{tikz}
-# \begin{document}
-# \begin{tikzpicture}
-#     \draw[fill=blue] (0, 0) rectangle (1, 1);
-# \end{tikzpicture}
-# \end{document}"""
-
 TIKZ_CODE = r"""\begin{tikzpicture}
     \draw[fill=blue] (0, 0) rectangle (1, 1);
 \end{tikzpicture}"""
 
 EXAMPLE_TIKZ_BASIC_STANDALONE = r"\draw[fill=blue] (0, 0) rectangle (1, 1);"
 
-RENDERED_SVG_PATH_GOOD_TIKZ = "M -0.00195486 -0.00189963 L -0.00195486 28.345014 L 28.344959 28.345014 L 28.344959 -0.00189963 Z M -0.00195486 -0.00189963"
+RENDERED_SVG_PATH_GOOD_TIKZ = (
+    "M -0.00195486 -0.00189963 L -0.00195486 28.345014 L 28.344959 28.345014 "
+    "L 28.344959 -0.00189963 Z M -0.00195486 -0.00189963"
+)
 
 EXAMPLE_VIEWBOX_CODE_INPUT = r"""
 \draw (-2.5,-2.5) rectangle (5,5);
 """
+
 EXAMPLE_PARENT_WITH_INPUT_COMMANDT = r"""
 \documentclass[tikz]{standalone}
 \begin{document}
@@ -63,5 +100,222 @@ ANY_CODE = "any code"
 
 
 @pytest.fixture
-def tex_document():
+def tex_document() -> TexDocument:
     return TexDocument(ANY_CODE)
+
+
+# ---------------------------------------------------------------------------
+# Minimal internal replacement for the pytest-mock ``mocker`` fixture
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class _PatchHandle:
+    patcher: Any
+    mock: Any
+
+
+class SimpleMocker:
+    """A tiny subset of pytest-mock's MockerFixture.
+
+    Supports:
+      * spy(obj, "attr")
+      * patch.object(obj, "attr", ...)
+    """
+
+    def __init__(self) -> None:
+        self._handles: list[_PatchHandle] = []
+
+    def stopall(self) -> None:
+        # Stop in reverse order (mirrors typical patch stacking semantics).
+        for h in reversed(self._handles):
+            try:
+                h.patcher.stop()
+            except Exception:
+                # Best-effort cleanup; tests should surface any real issues.
+                pass
+        self._handles.clear()
+
+    def spy(self, obj: Any, attribute: str):
+        """Wrap an attribute and record calls while still executing it."""
+        from unittest import mock
+
+        original = getattr(obj, attribute)
+
+        # Two cases:
+        # 1) Spying on an *instance* method via an instance. Tests in this suite
+        #    assert call signatures that do NOT include `self`. The most robust
+        #    approach is to patch the *instance attribute* with a Mock that wraps
+        #    the already-bound original method.
+        # 2) Spying on a class attribute (e.g. TexDocument._render_jinja). Here
+        #    binding must be preserved so the underlying method still receives
+        #    `self` correctly. Tests do not assert arg lists in this case.
+        if isinstance(obj, type):
+            patcher = mock.patch.object(obj, attribute, autospec=True, wraps=original)
+            m = patcher.start()
+        else:
+            wrapped = mock.Mock(wraps=original)
+            patcher = mock.patch.object(obj, attribute, new=wrapped)
+            m = patcher.start()
+
+        self._handles.append(_PatchHandle(patcher=patcher, mock=m))
+        return m
+
+    class patch:  # noqa: N801 - keep API-compatible attribute name
+        """Namespace mirroring pytest-mock's ``mocker.patch``."""
+
+        @staticmethod
+        def object(target: Any, attribute: str, *args: Any, **kwargs: Any):
+            raise RuntimeError(
+                "SimpleMocker.patch.object is a placeholder; use SimpleMocker.patch_object"
+            )
+
+    def patch_object(self, target: Any, attribute: str, *args: Any, **kwargs: Any):
+        """Patch ``target.attribute`` and record the patch for teardown."""
+        from unittest import mock
+
+        patcher = mock.patch.object(target, attribute, *args, **kwargs)
+        m = patcher.start()
+        self._handles.append(_PatchHandle(patcher=patcher, mock=m))
+        return m
+
+
+@pytest.fixture
+def mocker(request: pytest.FixtureRequest) -> SimpleMocker:
+    """Compatibility fixture for suites written against pytest-mock."""
+    m = SimpleMocker()
+
+    # Provide ``mocker.patch.object`` as in pytest-mock.
+    # We implement it via a bound method for teardown tracking.
+    setattr(m.patch, "object", m.patch_object)
+
+    request.addfinalizer(m.stopall)
+    return m
+
+
+# ---------------------------------------------------------------------------
+# Marker registration + toolchain gating
+# ---------------------------------------------------------------------------
+
+
+def pytest_addoption(parser: pytest.Parser) -> None:
+    group = parser.getgroup("jupyter_tikz")
+    group.addoption(
+        "--skip-render-tests",
+        action="store_true",
+        default=False,
+        help="Skip tests marked needs_latex / needs_pdftocairo.",
+    )
+    group.addoption(
+        "--latexmk",
+        action="store",
+        default=None,
+        help="Path to latexmk executable (overrides PATH lookup).",
+    )
+    group.addoption(
+        "--pdftocairo",
+        action="store",
+        default=None,
+        help="Path to pdftocairo executable (overrides PATH lookup).",
+    )
+    group.addoption(
+        "--lualatex",
+        action="store",
+        default=None,
+        help="Path to lualatex executable (overrides PATH lookup).",
+    )
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    config.addinivalue_line(
+        "markers",
+        "needs_latex: requires a LaTeX toolchain (latexmk + a TeX distribution)",
+    )
+    config.addinivalue_line(
+        "markers",
+        "needs_pdftocairo: requires pdftocairo in PATH (or --pdftocairo / env override)",
+    )
+    config.addinivalue_line(
+        "markers",
+        "needs_lualatex: requires a working lualatex engine",
+    )
+
+
+def _which_with_override(
+    *,
+    cli_override: Optional[str],
+    env_var: str,
+    default_cmd: str,
+) -> Optional[str]:
+    import os
+    import shutil
+
+    cmd = cli_override or os.getenv(env_var) or default_cmd
+    return shutil.which(cmd)
+
+
+def pytest_runtest_setup(item: pytest.Item) -> None:
+    import os
+
+    if item.config.getoption("--skip-render-tests") or os.getenv(
+        "JUPYTER_TIKZ_SKIP_RENDER_TESTS"
+    ) in {"1", "true", "TRUE", "yes", "YES"}:
+        if (
+            item.get_closest_marker("needs_latex")
+            or item.get_closest_marker("needs_pdftocairo")
+            or item.get_closest_marker("needs_lualatex")
+        ):
+            pytest.skip("render/toolchain tests skipped")
+
+    if item.get_closest_marker("needs_latex"):
+        latexmk = _which_with_override(
+            cli_override=item.config.getoption("--latexmk"),
+            env_var="JUPYTER_TIKZ_LATEXMKPATH",
+            default_cmd="latexmk",
+        )
+        if latexmk is None:
+            pytest.skip("latexmk not found")
+
+    if item.get_closest_marker("needs_pdftocairo"):
+        pdftocairo = _which_with_override(
+            cli_override=item.config.getoption("--pdftocairo"),
+            env_var="JUPYTER_TIKZ_PDFTOCAIROPATH",
+            default_cmd="pdftocairo",
+        )
+        if pdftocairo is None:
+            pytest.skip("pdftocairo not found")
+
+    if item.get_closest_marker("needs_lualatex"):
+        import subprocess
+        import tempfile
+
+        lualatex = _which_with_override(
+            cli_override=item.config.getoption("--lualatex"),
+            env_var="JUPYTER_TIKZ_LUALATEXPATH",
+            default_cmd="lualatex",
+        )
+        if lualatex is None:
+            pytest.skip("lualatex not found")
+
+        probe_key = "_jupyter_tikz_lualatex_probe_ok"
+        cached = getattr(item.config, probe_key, None)
+        if cached is None:
+            with tempfile.TemporaryDirectory(prefix="jupyter_tikz_lua_probe_") as tmp:
+                probe = Path(tmp) / "probe.tex"
+                probe.write_text(
+                    "\\documentclass{article}\\begin{document}ok\\end{document}",
+                    encoding="utf-8",
+                )
+                proc = subprocess.run(
+                    [lualatex, "-interaction=nonstopmode", str(probe.name)],
+                    cwd=tmp,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    check=False,
+                )
+                cached = proc.returncode == 0
+            setattr(item.config, probe_key, cached)
+
+        if not cached:
+            pytest.skip("lualatex is installed but unusable in this environment")

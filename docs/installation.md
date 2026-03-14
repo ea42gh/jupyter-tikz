@@ -8,6 +8,7 @@ hide:
 Jupyter-TikZ is a Python (3.10+) and IPython Magics library. However, in order for Jupyter-TikZ to work properly, some non-Python dependencies need to be installed first:
 
 - LaTeX
+- latexmk
 - Poppler
 
 ### LaTeX
@@ -28,6 +29,16 @@ MiKTeX-pdfTeX 4.19 (MiKTeX 24.4)<br>
 © 1982 D. E. Knuth, © 1996-2023 Hàn Thế Thành<br>
 TeX is a trademark of the American Mathematical Society.
 </div>
+
+### latexmk
+
+The default `%%tikz` / `%tikz` magic rendering path uses `latexmk` to compile TeX.
+
+Check if `latexmk` is available:
+
+```shell
+latexmk -v
+```
 
 ### Poppler
 

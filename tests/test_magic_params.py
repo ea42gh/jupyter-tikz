@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from jupyter_tikz import TexDocument, TexFragment, TikZMagics
@@ -40,6 +42,7 @@ def tikz_magic_mock(mocker, monkeypatch, tmp_path):
     mocker.patch.object(
         TexFragment, "_build_standalone_preamble", return_value="dummy preamble"
     )
+    mocker.patch.object(TikZMagics, "_render_with_executor", return_value="dummy_image")
     # mocker.patch.object(TexDocument, "_render_jinja", side_effect=jinja_mock)
 
     return tikz_magic
@@ -141,7 +144,7 @@ def test_image_none(tikz_magic_mock, mocker, capsys):
     # Arrange
     line = ""
     cell = "any cell content"
-    mocker.patch.object(TexDocument, "run_latex", return_value=None)
+    mocker.patch.object(TikZMagics, "_render_with_executor", return_value=None)
 
     # Act
     res = tikz_magic_mock.tikz(line, cell)
@@ -321,6 +324,275 @@ def test_remove_quotation_marks_from_strings_args(
 
     # Assert
     assert tikz_magic_mock.args[key] == expected_output
+
+
+def test_keep_temp_bool_flag_parses(tikz_magic_mock):
+    tikz_magic_mock.tikz("-k -nc", "any code")
+    assert tikz_magic_mock.args["keep_temp"] is True
+
+
+def test_keep_temp_optional_dir_parses(tikz_magic_mock):
+    tikz_magic_mock.tikz("--keep-temp outputs/tmp -nc", "any code")
+    assert tikz_magic_mock.args["keep_temp"] == "outputs/tmp"
+
+
+def test_output_stem_parses(tikz_magic_mock):
+    tikz_magic_mock.tikz("--output-stem my_render -nc", "any code")
+    assert tikz_magic_mock.args["output_stem"] == "my_render"
+
+
+def test_keep_temp_optional_dir_routes_executor_output_dir(
+    tikz_magic, monkeypatch, tmp_path
+):
+    captured: dict[str, Path] = {}
+
+    class _Artifacts:
+        def __init__(self, workdir: Path):
+            self.tex_path = workdir / "dummy.tex"
+            self.pdf_path = None
+            self.svg_path = workdir / "dummy.svg"
+
+        def read_svg(self, *, strip_xml_declaration=True):
+            _ = strip_xml_declaration
+            return "<svg viewBox='0 0 1 1'></svg>"
+
+    def fake_render_svg_with_artifacts(
+        tex_source, *, output_dir, toolchain_name, output_stem
+    ):
+        _ = tex_source, toolchain_name, output_stem
+        out = Path(output_dir)
+        captured["output_dir"] = out
+        out.mkdir(parents=True, exist_ok=True)
+        return _Artifacts(out)
+
+    monkeypatch.setattr(
+        "jupyter_tikz.magic.render_svg_with_artifacts", fake_render_svg_with_artifacts
+    )
+
+    tikz_magic.tikz("--keep-temp outputs/tmp", r"\draw (0,0) -- (1,1);")
+
+    assert captured["output_dir"] == (tmp_path / "outputs" / "tmp").resolve()
+
+
+def test_toolchain_option_parses(tikz_magic_mock):
+    tikz_magic_mock.tikz("--toolchain xelatex_pdf2svg -nc", "any code")
+    assert tikz_magic_mock.args["toolchain"] == "xelatex_pdf2svg"
+
+
+def test_diagnose_without_code_prints_report(tikz_magic, monkeypatch, capsys):
+    monkeypatch.setattr(
+        "jupyter_tikz.magic.check_toolchains",
+        lambda: {
+            "pdftex_pdftocairo": {
+                "name": "pdftex_pdftocairo",
+                "available": True,
+                "latex_bin": "latexmk",
+                "latex_path": "/bin/latexmk",
+                "svg_bin": "pdftocairo",
+                "svg_path": "/bin/pdftocairo",
+            }
+        },
+    )
+    tikz_magic.tikz("--diagnose")
+    out, err = capsys.readouterr()
+    assert "toolchain diagnostics" in out
+    assert "pdftex_pdftocairo: ok" in out
+    assert err == ""
+
+
+def test_diagnose_json_output(tikz_magic, monkeypatch, capsys):
+    monkeypatch.setattr(
+        "jupyter_tikz.magic.check_toolchains",
+        lambda: {
+            "pdftex_pdftocairo": {
+                "name": "pdftex_pdftocairo",
+                "available": True,
+                "latex_bin": "latexmk",
+                "latex_path": "/bin/latexmk",
+                "svg_bin": "pdftocairo",
+                "svg_path": "/bin/pdftocairo",
+            }
+        },
+    )
+    tikz_magic.tikz("--diagnose --json")
+    out, err = capsys.readouterr()
+    assert '"toolchains"' in out
+    assert '"pdftex_pdftocairo"' in out
+    assert err == ""
+
+
+def test_diagnose_json_output_short_j_flag(tikz_magic, monkeypatch, capsys):
+    monkeypatch.setattr(
+        "jupyter_tikz.magic.check_toolchains",
+        lambda: {
+            "pdftex_pdftocairo": {
+                "name": "pdftex_pdftocairo",
+                "available": True,
+                "latex_bin": "latexmk",
+                "latex_path": "/bin/latexmk",
+                "svg_bin": "pdftocairo",
+                "svg_path": "/bin/pdftocairo",
+            }
+        },
+    )
+    tikz_magic.tikz("--diagnose -j")
+    out, err = capsys.readouterr()
+    assert '"toolchains"' in out
+    assert err == ""
+
+
+def test_json_requires_diagnose(tikz_magic, capsys):
+    res = tikz_magic.tikz("--json", r"\draw (0,0) -- (1,1);")
+    out, err = capsys.readouterr()
+    assert res is None
+    assert out == ""
+    assert "--json" in err
+    assert "--diagnose" in err
+
+
+def test_diagnose_with_unknown_toolchain_reports_error(tikz_magic, capsys):
+    res = tikz_magic.tikz("--diagnose --toolchain nope")
+    out, err = capsys.readouterr()
+    assert res is None
+    assert out == ""
+    assert "Unknown toolchain: nope" in err
+
+
+def test_toolchain_option_routes_selected_toolchain_to_executor(
+    tikz_magic, monkeypatch, tmp_path
+):
+    captured: dict[str, str] = {}
+
+    class _Artifacts:
+        def __init__(self, workdir: Path):
+            self.tex_path = workdir / "dummy.tex"
+            self.pdf_path = None
+            self.svg_path = workdir / "dummy.svg"
+
+        def read_svg(self, *, strip_xml_declaration=True):
+            _ = strip_xml_declaration
+            return "<svg viewBox='0 0 1 1'></svg>"
+
+    def fake_render_svg_with_artifacts(
+        tex_source, *, output_dir, toolchain_name, output_stem
+    ):
+        _ = tex_source, output_stem
+        out = Path(output_dir)
+        captured["toolchain_name"] = toolchain_name
+        out.mkdir(parents=True, exist_ok=True)
+        return _Artifacts(out)
+
+    monkeypatch.setattr(
+        "jupyter_tikz.magic.render_svg_with_artifacts", fake_render_svg_with_artifacts
+    )
+    tikz_magic.tikz("--toolchain xelatex_pdf2svg", r"\draw (0,0) -- (1,1);")
+    assert captured["toolchain_name"] == "xelatex_pdf2svg"
+
+
+def test_output_stem_routes_to_executor(tikz_magic, monkeypatch):
+    captured: dict[str, str] = {}
+
+    class _Artifacts:
+        def __init__(self, workdir: Path):
+            self.tex_path = workdir / "dummy.tex"
+            self.pdf_path = None
+            self.svg_path = workdir / "dummy.svg"
+
+        def read_svg(self, *, strip_xml_declaration=True):
+            _ = strip_xml_declaration
+            return "<svg viewBox='0 0 1 1'></svg>"
+
+    def fake_render_svg_with_artifacts(
+        tex_source, *, output_dir, toolchain_name, output_stem
+    ):
+        _ = tex_source, output_dir, toolchain_name
+        captured["output_stem"] = output_stem
+        return _Artifacts(Path("."))
+
+    monkeypatch.setattr(
+        "jupyter_tikz.magic.render_svg_with_artifacts", fake_render_svg_with_artifacts
+    )
+    tikz_magic.tikz("--output-stem custom_stem", r"\draw (0,0) -- (1,1);")
+    assert captured["output_stem"] == "custom_stem"
+
+
+def test_invalid_toolchain_is_validated_in_render_path(tikz_magic, capsys):
+    res = tikz_magic.tikz("--toolchain nope", r"\draw (0,0) -- (1,1);")
+    out, err = capsys.readouterr()
+    assert res is None
+    assert out == ""
+    assert "Unknown toolchain: nope" in err
+
+
+def test_output_stem_routes_to_legacy_run_latex(tikz_magic, monkeypatch):
+    captured: dict[str, str] = {}
+
+    def fake_run_latex(self, *args, **kwargs):
+        _ = self, args
+        captured["output_stem"] = kwargs.get("output_stem")
+        return "dummy_image"
+
+    monkeypatch.setattr("jupyter_tikz.models.TexDocument.run_latex", fake_run_latex)
+    tikz_magic.tikz("--tex-args=-shell-escape --output-stem legacy_stem", "x")
+    assert captured["output_stem"] == "legacy_stem"
+
+
+def test_invalid_output_stem_is_rejected_in_magic(tikz_magic, capsys):
+    res = tikz_magic.tikz("--output-stem ../bad", r"\draw (0,0) -- (1,1);")
+    out, err = capsys.readouterr()
+    assert res is None
+    assert out == ""
+    assert "output_stem" in err
+
+
+def test_invalid_keep_temp_dir_is_rejected_in_magic(tikz_magic, capsys):
+    res = tikz_magic.tikz("--keep-temp ../bad", r"\draw (0,0) -- (1,1);")
+    out, err = capsys.readouterr()
+    assert res is None
+    assert out == ""
+    assert "keep-temp directory" in err
+
+
+def test_invalid_save_image_path_is_reported_in_magic(tikz_magic, monkeypatch, capsys):
+    class _Artifacts:
+        tex_path = Path("dummy.tex")
+        pdf_path = None
+        svg_path = Path("dummy.svg")
+
+        def read_svg(self, *, strip_xml_declaration=True):
+            _ = strip_xml_declaration
+            return "<svg viewBox='0 0 1 1'></svg>"
+
+    monkeypatch.setattr(
+        "jupyter_tikz.magic.render_svg_with_artifacts",
+        lambda *args, **kwargs: _Artifacts(),
+    )
+    res = tikz_magic.tikz("--save-image ../bad", r"\draw (0,0) -- (1,1);")
+    out, err = capsys.readouterr()
+    assert res is None
+    assert out == ""
+    assert "save destination" in err
+
+
+def test_invalid_save_tex_path_is_reported_in_magic(tikz_magic, monkeypatch, capsys):
+    class _Artifacts:
+        tex_path = Path("dummy.tex")
+        pdf_path = None
+        svg_path = Path("dummy.svg")
+
+        def read_svg(self, *, strip_xml_declaration=True):
+            _ = strip_xml_declaration
+            return "<svg viewBox='0 0 1 1'></svg>"
+
+    monkeypatch.setattr(
+        "jupyter_tikz.magic.render_svg_with_artifacts",
+        lambda *args, **kwargs: _Artifacts(),
+    )
+    res = tikz_magic.tikz("--save-tex ../bad", r"\draw (0,0) -- (1,1);")
+    out, err = capsys.readouterr()
+    assert res is None
+    assert out == ""
+    assert "save destination" in err
 
 
 # =================== Test src content ===================

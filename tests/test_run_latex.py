@@ -1,4 +1,5 @@
 import os
+import shutil
 import subprocess
 from hashlib import md5
 from pathlib import Path
@@ -39,6 +40,19 @@ def test_run_command_failure(
     _, err = capsys.readouterr()
     assert res == 1
     assert expected_err == err
+
+
+def test_run_command_uses_argv_without_shell(tex_document, mocker):
+    command = "pdflatex --version"
+    spy = mocker.spy(subprocess, "run")
+
+    tex_document._run_command(command)
+
+    called_args = spy.call_args.args[0]
+    called_kwargs = spy.call_args.kwargs
+    assert isinstance(called_args, list)
+    assert called_args[:2] == ["pdflatex", "--version"]
+    assert called_kwargs.get("shell") is None
 
 
 def test_run_command_invalid_command(tex_document, capsys):
@@ -217,9 +231,13 @@ def test_run_latex__valid_tex_program(
     path = Path().resolve() / ANY_CODE_HASH
 
     if tex_args:
-        expected_command = f"{tex_program} {tex_args} {path}.tex"
+        expected_command = [
+            tex_program,
+            *tex_args.split(),
+            str(path.with_suffix(".tex")),
+        ]
     else:
-        expected_command = f"{tex_program} {path}.tex"
+        expected_command = [tex_program, str(path.with_suffix(".tex"))]
 
     # Act
     tex_document_mock__run_latex.run_latex(
@@ -247,7 +265,12 @@ def test_pdf_cairo_custom_path(
 
     spy = mocker.spy(tex_document_mock__run_latex, "_run_command")
 
-    expected_command = f"{pdf_to_cairo_path} -svg {output_stem}.pdf {output_stem}.svg"
+    expected_command = [
+        pdf_to_cairo_path,
+        "-svg",
+        str(output_stem.with_suffix(".pdf")),
+        str(output_stem.with_suffix(".svg")),
+    ]
 
     # Act
     tex_document_mock__run_latex.run_latex(full_err=full_err)
@@ -267,7 +290,12 @@ def test_pdf_cairo_default_path(
 
     spy = mocker.spy(tex_document_mock__run_latex, "_run_command")
 
-    expected_command = f"pdftocairo -svg {output_stem}.pdf {output_stem}.svg"
+    expected_command = [
+        "pdftocairo",
+        "-svg",
+        str(output_stem.with_suffix(".pdf")),
+        str(output_stem.with_suffix(".svg")),
+    ]
 
     # Act
     res = tex_document_mock__run_latex.run_latex(full_err=full_err)
@@ -290,9 +318,16 @@ def test_pdf_cairo_rasterize(
 
     spy = mocker.spy(tex_document_mock__run_latex, "_run_command")
 
-    expected_command = (
-        f"pdftocairo -png -singlefile -transp -r {dpi} {output_stem}.pdf {output_stem}"
-    )
+    expected_command = [
+        "pdftocairo",
+        "-png",
+        "-singlefile",
+        "-transp",
+        "-r",
+        str(dpi),
+        str(output_stem.with_suffix(".pdf")),
+        str(output_stem),
+    ]
 
     # Act
     res = tex_document_mock__run_latex.run_latex(
@@ -318,9 +353,16 @@ def test_pdf_cairo_rasterize_with_grayscale(
 
     spy = mocker.spy(tex_document_mock__run_latex, "_run_command")
 
-    expected_command = (
-        f"pdftocairo -png -singlefile -gray -r {dpi} {output_stem}.pdf {output_stem}"
-    )
+    expected_command = [
+        "pdftocairo",
+        "-png",
+        "-singlefile",
+        "-gray",
+        "-r",
+        str(dpi),
+        str(output_stem.with_suffix(".pdf")),
+        str(output_stem),
+    ]
 
     # Act
     res = tex_document_mock__run_latex.run_latex(
@@ -512,7 +554,7 @@ def test_run_latex_bat_input_full_err(monkeypatch, tmpdir, capsys):
             "pdflatex",
             "--enable-write18 --extra-mem-top=10000000 --extra-mem-bot=10000000",
         ),
-        ("lualatex", ""),
+        pytest.param("lualatex", "", marks=pytest.mark.needs_lualatex),
     ],
 )
 def test_run_latex_custom_tex_command(monkeypatch, tmpdir, texprogram, texargs):
@@ -526,6 +568,12 @@ def test_run_latex_custom_tex_command(monkeypatch, tmpdir, texprogram, texargs):
 
     assert isinstance(res, display.SVG)
     assert expected_res in str(res.data)
+
+
+def test_run_latex_invalid_output_stem_raises():
+    tex_document = TexDocument(EXAMPLE_GOOD_TEX)
+    with pytest.raises(ValueError, match="output_stem"):
+        tex_document.run_latex(output_stem="../bad")
 
 
 @pytest.mark.needs_latex
@@ -559,19 +607,14 @@ def test_run_latex_rasterize_with_dpi(monkeypatch, tmpdir, dpi):
 
 @pytest.mark.needs_latex
 @pytest.mark.needs_pdftocairo
-@pytest.mark.skipif(
-    not os.path.exists(
-        os.path.expandvars("$LOCALAPPDATA/Poppler/Library/bin/pdftocairo.exe")
-    ),
-    reason="pdftocairo not found",
-)
 def test_run_latex_with_custom_pdftocairo_path(monkeypatch, tmpdir):
     # Arrange
     monkeypatch.chdir(tmpdir)
-    # IMPORTANT: Modify this path to the path of pdftocairo.exe in your system
-    pdftocairo_path = os.path.expandvars(
-        "$LOCALAPPDATA/Poppler/Library/bin/pdftocairo.exe"
-    )
+    # Resolve pdftocairo from PATH and pass it through the custom-path override.
+    # This makes the test cross-platform and avoids hardcoded Windows paths.
+    pdftocairo_path = shutil.which("pdftocairo")
+    if pdftocairo_path is None:
+        pytest.skip("pdftocairo not found")
     monkeypatch.setenv("JUPYTER_TIKZ_PDFTOCAIROPATH", pdftocairo_path)
 
     # Act

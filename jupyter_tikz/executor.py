@@ -278,8 +278,10 @@ def _run_toolchain_in_dir(
 ) -> RenderArtifacts:
     workdir.mkdir(parents=True, exist_ok=True)
 
+    tex_source = tex_source.replace("ᵀ", "^{T}")
+
     tex_path = workdir / f"{output_stem}.tex"
-    tex_path.write_text(tex_source)
+    tex_path.write_text(tex_source, encoding="utf-8", newline="\n")
 
     commands = build_commands(
         toolchain,

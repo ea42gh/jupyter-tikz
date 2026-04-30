@@ -164,25 +164,98 @@ def build_commands(
             pass
 
         # Ensure deterministic output name and single-page selection.
-        svg_cmd += [f"--output={output_stem}.svg", "--page=1", f"{output_stem}.dvi"]
+        svg_cmd += [
+            f"--output={output_stem}.svg",
+            "--page=1",
+            f"{output_stem}{toolchain.latex_output_ext}",
+        ]
         cmds.append(svg_cmd)
         return cmds
 
     # PDF-based converters: positional input/output.
     if toolchain.needs_pdf:
-        pdf = f"{output_stem}.pdf"
+        pdf = f"{output_stem}{toolchain.latex_output_ext}"
         svg = f"{output_stem}.svg"
         cmds.append(list(base_svg_cmd) + [pdf, svg])
         return cmds
 
     # Non-dvisvgm DVI converters (currently none in registry, but keep for completeness)
     if toolchain.needs_dvi:
-        dvi = f"{output_stem}.dvi"
+        dvi = f"{output_stem}{toolchain.latex_output_ext}"
         svg = f"{output_stem}.svg"
         cmds.append(list(base_svg_cmd) + [dvi, svg])
         return cmds
 
     return cmds
+
+
+_LATEX_RERUN_MARKERS: tuple[str, ...] = (
+    "Label(s) may have changed. Rerun to get cross-references right.",
+    "Rerun to get citations correct.",
+    "Rerun to get outlines right",
+    "rerunfilecheck Warning: File",
+    "There were undefined references.",
+)
+
+
+def _file_digest(path: Path) -> str | None:
+    try:
+        if not path.exists():
+            return None
+        return md5(path.read_bytes()).hexdigest()
+    except Exception:
+        return None
+
+
+def _latex_requests_rerun(stdout: str, stderr: str, log_path: Path) -> bool:
+    haystacks = [stdout or "", stderr or ""]
+    try:
+        if log_path.exists():
+            haystacks.append(log_path.read_text(errors="replace"))
+    except Exception:
+        pass
+    return any(marker in hay for hay in haystacks for marker in _LATEX_RERUN_MARKERS)
+
+
+def _run_latex_passes(
+    toolchain: Toolchain,
+    tex_path: Path,
+    *,
+    workdir: Path,
+    env: dict[str, str],
+) -> tuple[List[int], List[str], List[str]]:
+    returncodes: List[int] = []
+    stdout_chunks: List[str] = []
+    stderr_chunks: List[str] = []
+    aux_path = workdir / f"{tex_path.stem}.aux"
+    log_path = workdir / f"{tex_path.stem}.log"
+    prev_aux_digest: str | None = None
+
+    for pass_num in range(max(1, int(toolchain.max_passes))):
+        proc = subprocess.run(
+            list(toolchain.latex_cmd) + [tex_path.name],
+            cwd=str(workdir),
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        returncodes.append(proc.returncode)
+        stdout_chunks.append(proc.stdout)
+        stderr_chunks.append(proc.stderr)
+
+        if proc.returncode != 0:
+            break
+
+        aux_digest = _file_digest(aux_path)
+        rerun = _latex_requests_rerun(proc.stdout, proc.stderr, log_path)
+        if pass_num + 1 >= max(1, int(toolchain.max_passes)):
+            break
+        if not rerun and aux_digest == prev_aux_digest:
+            break
+        prev_aux_digest = aux_digest
+
+    return returncodes, stdout_chunks, stderr_chunks
 
 
 # -------------------------------------------------------------------------------------------------------------------
@@ -294,26 +367,30 @@ def _run_toolchain_in_dir(
         exact_bbox=exact_bbox,
     )
 
-    returncodes: List[int] = []
-    stdout_chunks: List[str] = []
-    stderr_chunks: List[str] = []
     run_env = _build_subprocess_env()
+    returncodes, stdout_chunks, stderr_chunks = _run_latex_passes(
+        toolchain,
+        tex_path,
+        workdir=workdir,
+        env=run_env,
+    )
 
-    for cmd in commands:
-        proc = subprocess.run(
-            cmd,
-            cwd=str(workdir),
-            env=run_env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-        returncodes.append(proc.returncode)
-        stdout_chunks.append(proc.stdout)
-        stderr_chunks.append(proc.stderr)
+    if not returncodes or returncodes[-1] == 0:
+        for cmd in commands[1:]:
+            proc = subprocess.run(
+                cmd,
+                cwd=str(workdir),
+                env=run_env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            returncodes.append(proc.returncode)
+            stdout_chunks.append(proc.stdout)
+            stderr_chunks.append(proc.stderr)
 
-        if proc.returncode != 0:
-            break
+            if proc.returncode != 0:
+                break
 
     stdout_path = workdir / f"{output_stem}.stdout.txt"
     stderr_path = workdir / f"{output_stem}.stderr.txt"
@@ -502,6 +579,16 @@ def run_toolchain(
             exact_bbox=exact_bbox,
         )
         run_env = _build_subprocess_env()
+        latex_rcs, latex_stdout, latex_stderr = _run_latex_passes(
+            toolchain,
+            tex_file,
+            workdir=workdir,
+            env=run_env,
+        )
+        returncodes.extend(latex_rcs)
+        stdout.extend(latex_stdout)
+        stderr.extend(latex_stderr)
+        commands = commands[1:] if (not returncodes or returncodes[-1] == 0) else []
 
         for cmd in commands:
             proc = subprocess.run(

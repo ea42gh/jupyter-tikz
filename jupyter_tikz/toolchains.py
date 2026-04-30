@@ -12,13 +12,15 @@ class Toolchain:
     svg_cmd: Sequence[str]
     needs_pdf: bool = True
     needs_dvi: bool = False
+    latex_output_ext: str = ".pdf"
+    max_passes: int = 4
 
 
 # --- Core toolchains ---
 
 PDFTEX_PDFTOCAIRO = Toolchain(
     name="pdftex_pdftocairo",
-    latex_cmd=["latexmk", "-pdf", "-interaction=nonstopmode"],
+    latex_cmd=["pdflatex", "-interaction=nonstopmode", "-recorder"],
     # NOTE: Some pdftocairo builds emit numbered outputs (e.g. output-1.svg)
     # when given a prefix; we always pass an explicit output filename
     # (output.svg) via build_commands, and the executor also contains a
@@ -28,37 +30,39 @@ PDFTEX_PDFTOCAIRO = Toolchain(
 
 PDFTEX_PDF2SVG = Toolchain(
     name="pdftex_pdf2svg",
-    latex_cmd=["latexmk", "-pdf", "-interaction=nonstopmode"],
+    latex_cmd=["pdflatex", "-interaction=nonstopmode", "-recorder"],
     svg_cmd=["pdf2svg"],
 )
 
 PDFTEX_DVISVGM = Toolchain(
     name="pdftex_dvisvgm",
-    latex_cmd=["latexmk", "-dvi", "-interaction=nonstopmode"],
+    latex_cmd=["latex", "-interaction=nonstopmode", "-recorder"],
     svg_cmd=["dvisvgm", "--no-fonts"],
     needs_pdf=False,
     needs_dvi=True,
+    latex_output_ext=".dvi",
 )
 
 XELATEX_PDFTOCAIRO = Toolchain(
     name="xelatex_pdftocairo",
-    latex_cmd=["latexmk", "-xelatex", "-interaction=nonstopmode"],
+    latex_cmd=["xelatex", "-interaction=nonstopmode", "-recorder"],
     # See PDFTEX_PDFTOCAIRO note on output naming.
     svg_cmd=["pdftocairo", "-svg"],
 )
 
 XELATEX_PDF2SVG = Toolchain(
     name="xelatex_pdf2svg",
-    latex_cmd=["latexmk", "-xelatex", "-interaction=nonstopmode"],
+    latex_cmd=["xelatex", "-interaction=nonstopmode", "-recorder"],
     svg_cmd=["pdf2svg"],
 )
 
 XELATEX_DVISVGM = Toolchain(
     name="xelatex_dvisvgm",
-    latex_cmd=["latexmk", "-xelatex", "-interaction=nonstopmode", "-dvi"],
+    latex_cmd=["xelatex", "-interaction=nonstopmode", "-recorder", "-no-pdf"],
     svg_cmd=["dvisvgm", "--no-fonts"],
     needs_pdf=False,
     needs_dvi=True,
+    latex_output_ext=".xdv",
 )
 
 

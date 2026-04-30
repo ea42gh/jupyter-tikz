@@ -106,6 +106,7 @@ def _format_toolchain_failure(
     """Format a RenderError message with actionable diagnostics."""
 
     last_rc = artifacts.returncodes[-1] if artifacts.returncodes else "n/a"
+    stdout_tail = _tail_text(artifacts.stdout_path, limit_chars=6000)
     stderr_tail = _tail_text(artifacts.stderr_path, limit_chars=4000)
     log_tail = _tail_text(workdir / f"{output_stem}.log", limit_chars=8000)
 
@@ -113,8 +114,11 @@ def _format_toolchain_failure(
     return (
         "Toolchain execution failed.\n"
         f"Artifacts kept at: {workdir}.\n"
+        f"See stdout at: {artifacts.stdout_path}\n"
         f"See stderr at: {artifacts.stderr_path}\n"
         f"Last returncode: {last_rc}.\n"
+        "---- stdout tail ----\n"
+        f"{stdout_tail}\n\n"
         "---- stderr tail ----\n"
         f"{stderr_tail}\n\n"
         "---- latex log tail ----\n"

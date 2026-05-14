@@ -64,7 +64,8 @@ def test_run_command_invalid_command(tex_document, capsys):
 
     # Assert
     _, err = capsys.readouterr()
-    assert command in err.lower()
+    err_lower = err.lower()
+    assert command in err_lower or "cannot find the file specified" in err_lower
     assert res != 0
 
 

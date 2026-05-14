@@ -14,9 +14,9 @@ def _fake_which(available: set[str]):
 def test_resolve_toolchain_name_legacy_defaults(monkeypatch):
     import jupyter_tikz.executor as ex
 
-    # latexmk and all converters are "available".
+    # Direct TeX engines and all converters are "available".
     monkeypatch.setattr(
-        ex.shutil, "which", _fake_which({"latexmk", "pdftocairo", "pdf2svg", "dvisvgm"})
+        ex.shutil, "which", _fake_which({"pdflatex", "latex", "pdftocairo", "pdf2svg", "dvisvgm"})
     )
     monkeypatch.delenv("JUPYTER_TIKZ_FAST_DEFAULTS", raising=False)
     monkeypatch.delenv("JUPYTER_TIKZ_DEFAULT_TOOLCHAIN", raising=False)
@@ -29,7 +29,7 @@ def test_resolve_toolchain_name_fast_defaults(monkeypatch):
     import jupyter_tikz.executor as ex
 
     monkeypatch.setattr(
-        ex.shutil, "which", _fake_which({"latexmk", "pdftocairo", "dvisvgm"})
+        ex.shutil, "which", _fake_which({"pdflatex", "latex", "pdftocairo", "dvisvgm"})
     )
     monkeypatch.setenv("JUPYTER_TIKZ_FAST_DEFAULTS", "1")
     monkeypatch.delenv("JUPYTER_TIKZ_DEFAULT_TOOLCHAIN", raising=False)
@@ -42,7 +42,7 @@ def test_default_toolchain_env_overrides_fast_defaults(monkeypatch):
     import jupyter_tikz.executor as ex
 
     monkeypatch.setattr(
-        ex.shutil, "which", _fake_which({"latexmk", "pdftocairo", "dvisvgm"})
+        ex.shutil, "which", _fake_which({"pdflatex", "latex", "pdftocairo", "dvisvgm"})
     )
     monkeypatch.setenv("JUPYTER_TIKZ_FAST_DEFAULTS", "1")
     monkeypatch.setenv("JUPYTER_TIKZ_DEFAULT_TOOLCHAIN", "xelatex_pdf2svg")
@@ -55,7 +55,7 @@ def test_programmatic_override_beats_env_and_fast_defaults(monkeypatch):
     import jupyter_tikz.executor as ex
 
     monkeypatch.setattr(
-        ex.shutil, "which", _fake_which({"latexmk", "pdftocairo", "dvisvgm"})
+        ex.shutil, "which", _fake_which({"pdflatex", "latex", "pdftocairo", "dvisvgm"})
     )
     monkeypatch.setenv("JUPYTER_TIKZ_FAST_DEFAULTS", "1")
     monkeypatch.setenv("JUPYTER_TIKZ_DEFAULT_TOOLCHAIN", "pdftex_dvisvgm")

@@ -30,19 +30,17 @@ def test_registry_contains_expected_toolchains(
 
 
 @pytest.mark.parametrize(
-    "name, expected_suffix",
+    "name",
     [
-        ("pdftex_pdftocairo", ".pdf"),
-        ("pdftex_pdf2svg", ".pdf"),
-        ("pdftex_dvisvgm", ".dvi"),
-        ("xelatex_pdftocairo", ".pdf"),
-        ("xelatex_pdf2svg", ".pdf"),
-        ("xelatex_dvisvgm", ".dvi"),
+        "pdftex_pdftocairo",
+        "pdftex_pdf2svg",
+        "pdftex_dvisvgm",
+        "xelatex_pdftocairo",
+        "xelatex_pdf2svg",
+        "xelatex_dvisvgm",
     ],
 )
-def test_build_commands_wires_expected_inputs(
-    name: str, expected_suffix: str, tmp_path
-):
+def test_build_commands_wires_expected_inputs(name: str, tmp_path):
     # build_commands is a pure function; we validate wiring without invoking TeX.
     tc = TOOLCHAINS[name]
     tex_file = tmp_path / "job.tex"
@@ -50,6 +48,7 @@ def test_build_commands_wires_expected_inputs(
 
     cmds = build_commands(tc, tex_file, output_stem="job")
     assert len(cmds) == 2
+    expected_suffix = tc.latex_output_ext
 
     latex_cmd, svg_cmd = cmds
     # LaTeX command should target the .tex input by filename (run in workdir).

@@ -17,7 +17,7 @@ def test_build_commands_pdftocairo():
     cmds = build_commands(tc, tex, output_stem="example")
 
     assert len(cmds) == 2
-    assert cmds[0][:2] == ["latexmk", "-pdf"]
+    assert cmds[0][:2] == ["pdflatex", "-interaction=nonstopmode"]
     assert cmds[0][-1] == "example.tex"
 
     assert cmds[1][0] in ("pdftocairo",)

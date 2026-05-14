@@ -16,6 +16,11 @@ from jupyter_tikz.toolchains import TOOLCHAINS, check_toolchain, check_toolchain
         ("xelatex_pdftocairo", True, False),
         ("xelatex_pdf2svg", True, False),
         ("xelatex_dvisvgm", False, True),
+        ("latexmk_pdftex_pdftocairo", True, False),
+        ("latexmk_pdftex_pdf2svg", True, False),
+        ("latexmk_pdftex_dvisvgm", False, True),
+        ("latexmk_xelatex_pdftocairo", True, False),
+        ("latexmk_xelatex_pdf2svg", True, False),
     ],
 )
 def test_registry_contains_expected_toolchains(
@@ -38,6 +43,11 @@ def test_registry_contains_expected_toolchains(
         "xelatex_pdftocairo",
         "xelatex_pdf2svg",
         "xelatex_dvisvgm",
+        "latexmk_pdftex_pdftocairo",
+        "latexmk_pdftex_pdf2svg",
+        "latexmk_pdftex_dvisvgm",
+        "latexmk_xelatex_pdftocairo",
+        "latexmk_xelatex_pdf2svg",
     ],
 )
 def test_build_commands_wires_expected_inputs(name: str, tmp_path):
@@ -70,6 +80,33 @@ def test_build_commands_wires_expected_inputs(name: str, tmp_path):
         # -singlefile for SVG outputs.
         if svg_cmd[0] == "pdftocairo":
             assert "-singlefile" not in svg_cmd
+
+
+def test_direct_toolchains_remain_first_in_registry():
+    assert list(TOOLCHAINS)[:6] == [
+        "pdftex_pdftocairo",
+        "pdftex_pdf2svg",
+        "pdftex_dvisvgm",
+        "xelatex_pdftocairo",
+        "xelatex_pdf2svg",
+        "xelatex_dvisvgm",
+    ]
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "latexmk_pdftex_pdftocairo",
+        "latexmk_pdftex_pdf2svg",
+        "latexmk_pdftex_dvisvgm",
+        "latexmk_xelatex_pdftocairo",
+        "latexmk_xelatex_pdf2svg",
+    ],
+)
+def test_latexmk_toolchains_are_explicit_opt_ins(name: str):
+    tc = TOOLCHAINS[name]
+    assert tc.latex_cmd[0] == "latexmk"
+    assert tc.max_passes == 1
 
 
 def test_check_toolchain_unknown_raises():

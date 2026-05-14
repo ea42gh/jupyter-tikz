@@ -66,6 +66,47 @@ XELATEX_DVISVGM = Toolchain(
 )
 
 
+# --- Opt-in latexmk toolchains ---
+
+LATEXMK_PDFTEX_PDFTOCAIRO = Toolchain(
+    name="latexmk_pdftex_pdftocairo",
+    latex_cmd=["latexmk", "-pdf", "-interaction=nonstopmode"],
+    svg_cmd=["pdftocairo", "-svg"],
+    max_passes=1,
+)
+
+LATEXMK_PDFTEX_PDF2SVG = Toolchain(
+    name="latexmk_pdftex_pdf2svg",
+    latex_cmd=["latexmk", "-pdf", "-interaction=nonstopmode"],
+    svg_cmd=["pdf2svg"],
+    max_passes=1,
+)
+
+LATEXMK_PDFTEX_DVISVGM = Toolchain(
+    name="latexmk_pdftex_dvisvgm",
+    latex_cmd=["latexmk", "-dvi", "-interaction=nonstopmode"],
+    svg_cmd=["dvisvgm", "--no-fonts"],
+    needs_pdf=False,
+    needs_dvi=True,
+    latex_output_ext=".dvi",
+    max_passes=1,
+)
+
+LATEXMK_XELATEX_PDFTOCAIRO = Toolchain(
+    name="latexmk_xelatex_pdftocairo",
+    latex_cmd=["latexmk", "-xelatex", "-interaction=nonstopmode"],
+    svg_cmd=["pdftocairo", "-svg"],
+    max_passes=1,
+)
+
+LATEXMK_XELATEX_PDF2SVG = Toolchain(
+    name="latexmk_xelatex_pdf2svg",
+    latex_cmd=["latexmk", "-xelatex", "-interaction=nonstopmode"],
+    svg_cmd=["pdf2svg"],
+    max_passes=1,
+)
+
+
 # --- Registry ---
 
 TOOLCHAINS = {
@@ -77,6 +118,11 @@ TOOLCHAINS = {
         XELATEX_PDFTOCAIRO,
         XELATEX_PDF2SVG,
         XELATEX_DVISVGM,
+        LATEXMK_PDFTEX_PDFTOCAIRO,
+        LATEXMK_PDFTEX_PDF2SVG,
+        LATEXMK_PDFTEX_DVISVGM,
+        LATEXMK_XELATEX_PDFTOCAIRO,
+        LATEXMK_XELATEX_PDF2SVG,
     ]
 }
 

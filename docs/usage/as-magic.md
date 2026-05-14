@@ -957,7 +957,9 @@ You can change the TeX program using `-tp=<tex_program>` or `--tex-program=<tex_
     - `-tp=pdflatex` maps to the `pdftex_pdftocairo` toolchain.
     - `-tp=xelatex` maps to the `xelatex_pdftocairo` toolchain.
 
-    These paths require `latexmk` and a PDF-to-SVG converter (by default, `pdftocairo`) available in `PATH`.
+    These paths require the selected TeX engine and a PDF-to-SVG converter
+    (by default, `pdftocairo`) available in `PATH`. Use an explicit
+    `latexmk_*` toolchain if you want latexmk-based compilation.
 
     Other TeX programs (for example `lualatex`) or custom `--tex-args` use the legacy execution path.
 
@@ -982,6 +984,9 @@ You can override automatic toolchain resolution with `--toolchain=<name>`:
 %%tikz -as=t --toolchain=pdftex_dvisvgm
 \draw[thick, blue] (0,0) circle (1);
 ```
+
+Explicit latexmk-backed toolchains are available under `latexmk_*` names, for
+example `latexmk_pdftex_pdftocairo` and `latexmk_xelatex_pdf2svg`.
 
 If you need to debug binary availability, run diagnostics without rendering:
 

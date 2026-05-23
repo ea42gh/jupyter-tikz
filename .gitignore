@@ -166,3 +166,5 @@ cython_debug/
 .jupyter/
 .virtual_documents/
 cornway*
+.venv_lint/
+notebooks/outputs/enhancements-demo/

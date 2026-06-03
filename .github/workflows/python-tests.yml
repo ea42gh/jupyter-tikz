@@ -4,14 +4,14 @@ on: [push, pull_request]
 
 jobs:
   lint-type:
-    name: Lint and Type Checks
+    name: Lint and Type Checks - Python 3.10
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Python 3.10
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.10"
 
@@ -28,20 +28,21 @@ jobs:
         run: poetry run task type_check
 
   validation-cross-platform:
-    name: Validation tests (${{ matrix.os }})
+    name: Validation tests - Python ${{ matrix.python-version }} - ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - name: Set up Python 3.10
-        uses: actions/setup-python@v5
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v6
         with:
-          python-version: "3.10"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install poetry
         run: pip install poetry
@@ -58,16 +59,37 @@ jobs:
       matrix:
         include:
           - tex_engine: pdflatex
+            python_version: "3.10"
+            default_toolchain: pdftex_pdftocairo
+            include_xetex: false
+            include_luatex: false
+            experimental: false
+          - tex_engine: pdflatex
+            python_version: "3.11"
+            default_toolchain: pdftex_pdftocairo
+            include_xetex: false
+            include_luatex: false
+            experimental: false
+          - tex_engine: pdflatex
+            python_version: "3.12"
+            default_toolchain: pdftex_pdftocairo
+            include_xetex: false
+            include_luatex: false
+            experimental: false
+          - tex_engine: pdflatex
+            python_version: "3.13"
             default_toolchain: pdftex_pdftocairo
             include_xetex: false
             include_luatex: false
             experimental: false
           - tex_engine: xelatex
+            python_version: "3.11"
             default_toolchain: xelatex_pdftocairo
             include_xetex: true
             include_luatex: false
             experimental: false
           - tex_engine: lualatex
+            python_version: "3.11"
             default_toolchain: pdftex_pdftocairo
             include_xetex: false
             include_luatex: true
@@ -76,7 +98,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install LaTeX and Poppler
         run: |
@@ -89,10 +111,10 @@ jobs:
             sudo apt install -y texlive-luatex
           fi
 
-      - name: Set up Python 3.10
-        uses: actions/setup-python@v5
+      - name: Set up Python ${{ matrix.python_version }}
+        uses: actions/setup-python@v6
         with:
-          python-version: '3.10'
+          python-version: ${{ matrix.python_version }}
 
       - name: Install poetry
         run: |
@@ -111,6 +133,6 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: ${{ !matrix.experimental }}
-        uses: codecov/codecov-action@v4.0.1
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

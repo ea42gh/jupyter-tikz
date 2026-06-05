@@ -60,7 +60,7 @@ def _fake_subprocess_run_factory(output_stem: str):
     [
         ("pdftex_pdftocairo", "tight", ["crop", "padding", "frame"]),
         ("pdftex_pdftocairo", "page", ["padding", "frame"]),
-        ("pdftex_dvisvgm", "tight", ["padding", "frame"]),
+        ("pdftex_dvisvgm", "tight", ["crop", "padding", "frame"]),
     ],
 )
 def test_render_svg_with_artifacts_postprocess_order(

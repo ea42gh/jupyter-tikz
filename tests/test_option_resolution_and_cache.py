@@ -26,7 +26,7 @@ def test_resolve_crop_policy_distinguishes_default_vs_explicit():
 
     mode, enforce = resolve_crop_policy(None, PDFTEX_DVISVGM)
     assert mode == "tight"
-    assert enforce is False
+    assert enforce is True
 
 
 def test_padding_normalization_forms():

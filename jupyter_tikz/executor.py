@@ -133,8 +133,8 @@ def build_commands(
     *,
     crop_mode: Literal["tight", "page", "none"] = "none",
     # NOTE: `enforce_tight_crop` affects only post-processing (Inkscape-based
-    # tight-crop) for PDF-based converters. Command construction does not depend
-    # on it. We accept it here so callers can pass a consistent option set.
+    # tight-crop). Command construction does not depend on it. We accept it here
+    # so callers can pass a consistent option set.
     enforce_tight_crop: bool = False,
     exact_bbox: bool = False,
 ) -> List[List[str]]:
@@ -408,12 +408,7 @@ def _run_toolchain_in_dir(
         _find_svg_output_path(workdir, output_stem),
     )
     if svg_path is not None and svg_path.exists():
-        # Tight-crop post-processing is only used for PDF-based converters.
-        if (
-            enforce_tight_crop
-            and crop_mode == "tight"
-            and (not toolchain.svg_cmd or toolchain.svg_cmd[0] != "dvisvgm")
-        ):
+        if enforce_tight_crop and crop_mode == "tight":
             crop_svg_inplace(svg_path)
 
         # Padding is deterministic and toolchain-agnostic.
@@ -614,11 +609,7 @@ def run_toolchain(
             _find_svg_output_path(workdir, output_stem),
         )
         if svg_path is not None and svg_path.exists():
-            if (
-                enforce_tight_crop
-                and crop_mode == "tight"
-                and (not toolchain.svg_cmd or toolchain.svg_cmd[0] != "dvisvgm")
-            ):
+            if enforce_tight_crop and crop_mode == "tight":
                 crop_svg_inplace(svg_path)
             if not pad.is_zero():
                 apply_padding_to_svg_file(svg_path, pad)
@@ -873,10 +864,10 @@ def resolve_crop_policy(
 
     Semantics
     ---------
-    - For *dvisvgm* toolchains, tight/page/none are implemented via dvisvgm flags;
-      no Inkscape-based enforcement is needed (enforce=False).
-    - For PDF->SVG toolchains (pdftocairo/pdf2svg), tight-cropping is enforced via
-      Inkscape only when ``mode == "tight"`` and Inkscape is available.
+    - For *dvisvgm* toolchains, tight/page/none are first implemented via dvisvgm
+      flags.
+    - For every toolchain, tight-cropping is then enforced via Inkscape when
+      ``mode == "tight"`` and Inkscape is available.
 
     Defaults
     --------
@@ -887,11 +878,6 @@ def resolve_crop_policy(
     else:
         mode = "tight"
 
-    is_dvisvgm = bool(toolchain.svg_cmd) and toolchain.svg_cmd[0] == "dvisvgm"
-    if is_dvisvgm:
-        return (mode, False)
-
-    # PDF toolchains: only tight is enforced (via Inkscape).
     return (mode, mode == "tight")
 
 
@@ -937,7 +923,6 @@ def _render_base_svg_cached(
     inkscape_variant = bool(
         enforce_tight_crop
         and crop_mode == "tight"
-        and (not tc.svg_cmd or tc.svg_cmd[0] != "dvisvgm")
         and (shutil.which("inkscape") is not None)
     )
     tex_key = md5(tex_source.encode("utf-8")).hexdigest()

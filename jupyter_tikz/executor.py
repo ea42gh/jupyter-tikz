@@ -919,7 +919,6 @@ def _render_base_svg_cached(
     Padding is intentionally excluded from the cache key so that callers can
     apply arbitrary per-side padding cheaply without re-running LaTeX.
     """
-    tc = TOOLCHAINS[toolchain_name]
     inkscape_variant = bool(
         enforce_tight_crop
         and crop_mode == "tight"

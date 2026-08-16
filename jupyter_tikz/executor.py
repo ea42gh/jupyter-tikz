@@ -17,6 +17,7 @@ from jupyter_tikz.canvas_frame import (
     apply_canvas_frame_to_svg_text,
 )
 from jupyter_tikz.crop import crop_svg_inplace
+from jupyter_tikz.diagnostics import format_toolchain_failure
 from jupyter_tikz.errors import InvalidToolchainError
 from jupyter_tikz.naming import validate_output_stem
 from jupyter_tikz.paths import validate_user_output_path
@@ -26,52 +27,13 @@ from jupyter_tikz.svg_box import (
     apply_padding_to_svg_text,
     normalize_padding,
 )
+from jupyter_tikz.svg_normalize import strip_svg_xml_declaration
 from jupyter_tikz.toolchains import TOOLCHAINS, Toolchain
 
 # from typing import Sequence
 
+
 # =======================================================================================================
-_XML_DECL_RE = re.compile(r"^\ufeff?\s*<\?xml[^>]*\?>\s*", re.IGNORECASE | re.DOTALL)
-_DOCTYPE_RE = re.compile(r"^\s*<!DOCTYPE[^>]*>\s*", re.IGNORECASE | re.DOTALL)
-
-
-def strip_svg_xml_declaration(svg_text: str) -> str:
-    """Strip optional XML prolog / doctype from an SVG string.
-
-    Many SVG converters emit an XML declaration, e.g.::
-
-        <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-
-    That prolog is legal XML but can break consumers that expect an inline
-    ``<svg ...>`` root (e.g. Panel's ``pn.pane.SVG``). Removing it is safe for
-    typical inline usage and does not alter the SVG element tree.
-
-    This function is intentionally conservative: it only strips leading prolog
-    constructs and leaves the rest of the document untouched.
-    """
-
-    if not svg_text:
-        return svg_text
-
-    out = _XML_DECL_RE.sub("", svg_text, count=1)
-    # Some converters also emit a doctype line; strip it if present.
-    out = _DOCTYPE_RE.sub("", out, count=1)
-    return out.lstrip("\n")
-
-
-def _tail_text(path: Path, *, limit_chars: int) -> str:
-    """Read the tail of a text file for diagnostics."""
-    try:
-        if not path.exists():
-            return f"<missing: {path.name}>"
-        txt = path.read_text(errors="replace")
-    except Exception:
-        return f"<unreadable: {path.name}>"
-    if len(txt) <= int(limit_chars):
-        return txt
-    return txt[-int(limit_chars) :]
-
-
 def _build_subprocess_env(*, source_cwd: Path | None = None) -> dict[str, str]:
     """Build subprocess env with a TeX search path that includes caller CWD.
 
@@ -95,35 +57,6 @@ def _build_subprocess_env(*, source_cwd: Path | None = None) -> dict[str, str]:
         # Keep the trailing separator so TeX also searches its default paths.
         env["TEXINPUTS"] = prefix + os.pathsep
     return env
-
-
-def _format_toolchain_failure(
-    artifacts: "RenderArtifacts",
-    *,
-    workdir: Path,
-    output_stem: str,
-) -> str:
-    """Format a RenderError message with actionable diagnostics."""
-
-    last_rc = artifacts.returncodes[-1] if artifacts.returncodes else "n/a"
-    stdout_tail = _tail_text(artifacts.stdout_path, limit_chars=6000)
-    stderr_tail = _tail_text(artifacts.stderr_path, limit_chars=4000)
-    log_tail = _tail_text(workdir / f"{output_stem}.log", limit_chars=8000)
-
-    # Keep this message stable: tests assert specific substrings.
-    return (
-        "Toolchain execution failed.\n"
-        f"Artifacts kept at: {workdir}.\n"
-        f"See stdout at: {artifacts.stdout_path}\n"
-        f"See stderr at: {artifacts.stderr_path}\n"
-        f"Last returncode: {last_rc}.\n"
-        "---- stdout tail ----\n"
-        f"{stdout_tail}\n\n"
-        "---- stderr tail ----\n"
-        f"{stderr_tail}\n\n"
-        "---- latex log tail ----\n"
-        f"{log_tail}"
-    )
 
 
 def build_commands(
@@ -466,7 +399,7 @@ def render_svg_with_artifacts(
 
     if not artifacts.returncodes or artifacts.returncodes[-1] != 0:
         raise RenderError(
-            _format_toolchain_failure(
+            format_toolchain_failure(
                 artifacts,
                 workdir=Path(output_dir),
                 output_stem=output_stem,
@@ -475,7 +408,7 @@ def render_svg_with_artifacts(
 
     if artifacts.svg_path is None:
         raise RenderError(
-            "SVG output not produced.\n" f"Artifacts kept at: {Path(output_dir)}."
+            f"SVG output not produced.\nArtifacts kept at: {Path(output_dir)}."
         )
 
     if frame and artifacts.svg_path is not None:
@@ -750,7 +683,7 @@ def render_svg(
 
         if not artifacts.returncodes or artifacts.returncodes[-1] != 0:
             raise RenderError(
-                _format_toolchain_failure(artifacts, workdir=workdir, output_stem=stem)
+                format_toolchain_failure(artifacts, workdir=workdir, output_stem=stem)
             )
 
         if artifacts.svg_path is None:
@@ -981,7 +914,7 @@ def _render_base_svg_uncached(
         )
         if not artifacts.returncodes or artifacts.returncodes[-1] != 0:
             raise RenderError(
-                _format_toolchain_failure(
+                format_toolchain_failure(
                     artifacts,
                     workdir=workdir,
                     output_stem=output_stem,

@@ -23,7 +23,7 @@ def test_render_svg_basic_golden():
     """
 
     toolchain = resolve_toolchain_name(None)
-    svg = normalize_svg(render_svg(tex, toolchain_name=toolchain))
+    svg = normalize_svg(render_svg(tex, toolchain_name=toolchain, crop="none"))
 
     golden = Path(__file__).parent / "basic_text.svg"
     expected = normalize_svg(golden.read_text())

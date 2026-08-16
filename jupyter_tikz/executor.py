@@ -6,13 +6,14 @@ import subprocess
 import tempfile
 from hashlib import md5
 from pathlib import Path
-from typing import Literal, Optional, Tuple, Union
+from typing import Literal, Optional, Union
 
 from jupyter_tikz import cache as _cache
 from jupyter_tikz import policy as _policy
 from jupyter_tikz.artifacts import (
     _canonicalize_svg_output_path,
     _find_svg_output_path,
+    _resolve_artifacts_target,
 )
 from jupyter_tikz.canvas_frame import (
     apply_canvas_frame_to_svg_file,
@@ -23,7 +24,6 @@ from jupyter_tikz.crop import crop_svg_inplace
 from jupyter_tikz.diagnostics import format_toolchain_failure
 from jupyter_tikz.errors import InvalidToolchainError
 from jupyter_tikz.naming import validate_output_stem
-from jupyter_tikz.paths import validate_user_output_path
 from jupyter_tikz.process import _build_subprocess_env, _run_latex_passes
 from jupyter_tikz.render_types import ExecutionResult, RenderArtifacts, RenderError
 from jupyter_tikz.svg_box import (
@@ -184,48 +184,6 @@ def render_svg_with_artifacts(
         apply_canvas_frame_to_svg_file(artifacts.svg_path, frame)
 
     return artifacts
-
-
-def _resolve_artifacts_target(
-    tex_source: str,
-    *,
-    output_stem: str,
-    artifacts_path: Optional[Union[str, os.PathLike]] = None,
-    artifacts_prefix: Optional[Union[str, os.PathLike]] = None,
-) -> Tuple[Path, str, bool]:
-    """Resolve (workdir, stem, cleanup_on_success) for render_svg.
-
-    Rules
-    -----
-    - If ``artifacts_path`` is None: create a temp directory and clean it up on success.
-      On failure the temp directory is *kept* and the exception message includes its path.
-    - If ``artifacts_prefix`` is set: treat it as an explicit file prefix and
-      write artifacts as ``{prefix}.tex/.svg/...``.
-    - If ``artifacts_path`` is set: treat it as an artifacts directory (created
-      if needed) and use a unique stem ``{output_stem}-{md5(tex)[:8]}``.
-    """
-
-    safe_stem = validate_output_stem(output_stem)
-
-    if artifacts_path is None:
-        if artifacts_prefix is not None:
-            p = validate_user_output_path(
-                artifacts_prefix, field_name="artifacts_prefix"
-            )
-            validate_output_stem(p.name)
-            p.parent.mkdir(parents=True, exist_ok=True)
-            return p.parent, p.name, False
-        workdir = Path(tempfile.mkdtemp(prefix="jupyter_tikz_"))
-        cleanup_on_success = os.environ.get("JUPYTER_TIKZ_KEEP_TEMP") != "1"
-        return workdir, safe_stem, cleanup_on_success
-
-    if artifacts_prefix is not None:
-        raise ValueError("Use only one of artifacts_path or artifacts_prefix")
-
-    p = validate_user_output_path(artifacts_path, field_name="artifacts_path")
-    p.mkdir(parents=True, exist_ok=True)
-    h8 = md5(tex_source.encode("utf-8")).hexdigest()[:8]
-    return p, f"{safe_stem}-{h8}", False
 
 
 # -------------------------------------------------------------------------------------------------------------------

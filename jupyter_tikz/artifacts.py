@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+import os
 import re
 import shutil
+import tempfile
+from hashlib import md5
 from pathlib import Path
+from typing import Optional, Tuple, Union
+
+from jupyter_tikz.naming import validate_output_stem
+from jupyter_tikz.paths import validate_user_output_path
 
 _PAGE_SUFFIX_RE_CACHE: dict[str, re.Pattern[str]] = {}
 
@@ -85,6 +92,39 @@ def canonicalize_svg_output_path(
         return found
 
 
+def resolve_artifacts_target(
+    tex_source: str,
+    *,
+    output_stem: str,
+    artifacts_path: Optional[Union[str, os.PathLike]] = None,
+    artifacts_prefix: Optional[Union[str, os.PathLike]] = None,
+) -> Tuple[Path, str, bool]:
+    """Resolve (workdir, stem, cleanup_on_success) for render_svg."""
+
+    safe_stem = validate_output_stem(output_stem)
+
+    if artifacts_path is None:
+        if artifacts_prefix is not None:
+            p = validate_user_output_path(
+                artifacts_prefix, field_name="artifacts_prefix"
+            )
+            validate_output_stem(p.name)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            return p.parent, p.name, False
+        workdir = Path(tempfile.mkdtemp(prefix="jupyter_tikz_"))
+        cleanup_on_success = os.environ.get("JUPYTER_TIKZ_KEEP_TEMP") != "1"
+        return workdir, safe_stem, cleanup_on_success
+
+    if artifacts_prefix is not None:
+        raise ValueError("Use only one of artifacts_path or artifacts_prefix")
+
+    p = validate_user_output_path(artifacts_path, field_name="artifacts_path")
+    p.mkdir(parents=True, exist_ok=True)
+    h8 = md5(tex_source.encode("utf-8")).hexdigest()[:8]
+    return p, f"{safe_stem}-{h8}", False
+
+
 # Compatibility aliases for older tests/imports that reached into executor internals.
 _find_svg_output_path = find_svg_output_path
 _canonicalize_svg_output_path = canonicalize_svg_output_path
+_resolve_artifacts_target = resolve_artifacts_target

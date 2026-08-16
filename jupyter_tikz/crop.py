@@ -173,7 +173,7 @@ def crop_svg_inplace(svg_path: Path) -> bool:
                 text=True,
                 timeout=30.0,
             )
-        except Exception as e:
+        except Exception:
             # if _debug_enabled():
             #    print("[crop] exec exception:", repr(e))
             #    print("[crop] cmd:", " ".join(cmd))

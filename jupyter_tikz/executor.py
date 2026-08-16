@@ -16,6 +16,7 @@ from jupyter_tikz.canvas_frame import (
     apply_canvas_frame_to_svg_file,
     apply_canvas_frame_to_svg_text,
 )
+from jupyter_tikz.commands import build_commands
 from jupyter_tikz.crop import crop_svg_inplace
 from jupyter_tikz.diagnostics import format_toolchain_failure
 from jupyter_tikz.errors import InvalidToolchainError
@@ -57,69 +58,6 @@ def _build_subprocess_env(*, source_cwd: Path | None = None) -> dict[str, str]:
         # Keep the trailing separator so TeX also searches its default paths.
         env["TEXINPUTS"] = prefix + os.pathsep
     return env
-
-
-def build_commands(
-    toolchain: Toolchain,
-    tex_file: Path,
-    output_stem: str,
-    *,
-    crop_mode: Literal["tight", "page", "none"] = "none",
-    # NOTE: `enforce_tight_crop` affects only post-processing (Inkscape-based
-    # tight-crop). Command construction does not depend on it. We accept it here
-    # so callers can pass a consistent option set.
-    enforce_tight_crop: bool = False,
-    exact_bbox: bool = False,
-) -> List[List[str]]:
-    """Return the sequence of command invocations needed for this toolchain.
-
-    This is a pure function used by tests to validate wiring.
-    """
-
-    cmds: List[List[str]] = []
-
-    # LaTeX step
-    cmds.append(list(toolchain.latex_cmd) + [tex_file.name])
-
-    # SVG conversion step
-    base_svg_cmd = list(toolchain.svg_cmd)
-
-    # dvisvgm has its own bbox and output flags.
-    if base_svg_cmd and base_svg_cmd[0] == "dvisvgm":
-        svg_cmd = list(base_svg_cmd)
-        if crop_mode == "tight":
-            svg_cmd += ["--bbox=min"]
-            if exact_bbox:
-                svg_cmd += ["--exact-bbox"]
-        elif crop_mode == "page":
-            svg_cmd += ["--bbox=papersize"]
-        elif crop_mode == "none":
-            pass
-
-        # Ensure deterministic output name and single-page selection.
-        svg_cmd += [
-            f"--output={output_stem}.svg",
-            "--page=1",
-            f"{output_stem}{toolchain.latex_output_ext}",
-        ]
-        cmds.append(svg_cmd)
-        return cmds
-
-    # PDF-based converters: positional input/output.
-    if toolchain.needs_pdf:
-        pdf = f"{output_stem}{toolchain.latex_output_ext}"
-        svg = f"{output_stem}.svg"
-        cmds.append(list(base_svg_cmd) + [pdf, svg])
-        return cmds
-
-    # Non-dvisvgm DVI converters (currently none in registry, but keep for completeness)
-    if toolchain.needs_dvi:
-        dvi = f"{output_stem}{toolchain.latex_output_ext}"
-        svg = f"{output_stem}.svg"
-        cmds.append(list(base_svg_cmd) + [dvi, svg])
-        return cmds
-
-    return cmds
 
 
 _LATEX_RERUN_MARKERS: tuple[str, ...] = (

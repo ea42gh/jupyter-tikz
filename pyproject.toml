@@ -81,8 +81,8 @@ warn_unused_ignores = true
 [tool.taskipy.tasks]
 fmt = "black jupyter_tikz tests && isort jupyter_tikz tests"
 lint = "task fmt"
-lint_check = "ruff check jupyter_tikz/args.py jupyter_tikz/errors.py jupyter_tikz/executor.py jupyter_tikz/magic.py jupyter_tikz/naming.py jupyter_tikz/paths.py jupyter_tikz/save_paths.py jupyter_tikz/toolchains.py"
-type_check = "mypy jupyter_tikz/args.py jupyter_tikz/errors.py jupyter_tikz/executor.py jupyter_tikz/magic.py jupyter_tikz/naming.py jupyter_tikz/paths.py jupyter_tikz/save_paths.py jupyter_tikz/toolchains.py"
+lint_check = "ruff check jupyter_tikz"
+type_check = "mypy jupyter_tikz"
 test = "pytest -vv --cov=jupyter_tikz"
 post_test = "coverage lcov"
 ci_local = "task lint_check && task type_check && task test"

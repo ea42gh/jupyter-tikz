@@ -4,10 +4,9 @@ import os
 import shutil
 import subprocess
 import tempfile
-from dataclasses import dataclass
 from hashlib import md5
 from pathlib import Path
-from typing import List, Literal, Optional, Tuple, Union
+from typing import Literal, Optional, Tuple, Union
 
 from jupyter_tikz import cache as _cache
 from jupyter_tikz import policy as _policy
@@ -26,6 +25,7 @@ from jupyter_tikz.errors import InvalidToolchainError
 from jupyter_tikz.naming import validate_output_stem
 from jupyter_tikz.paths import validate_user_output_path
 from jupyter_tikz.process import _build_subprocess_env, _run_latex_passes
+from jupyter_tikz.render_types import ExecutionResult, RenderArtifacts, RenderError
 from jupyter_tikz.svg_box import (
     Padding,
     apply_padding_to_svg_file,
@@ -228,22 +228,6 @@ def _resolve_artifacts_target(
     return p, f"{safe_stem}-{h8}", False
 
 
-@dataclass(frozen=True)
-class ExecutionResult:
-    returncodes: List[int]
-    stdout: List[str]
-    stderr: List[str]
-    svg_text: str | None
-
-    @property
-    def stdout_text(self) -> str:
-        return "".join(self.stdout)
-
-    @property
-    def stderr_text(self) -> str:
-        return "".join(self.stderr)
-
-
 # -------------------------------------------------------------------------------------------------------------------
 def run_toolchain(
     toolchain: Toolchain,
@@ -328,29 +312,6 @@ def run_toolchain(
         stderr=stderr,
         svg_text=svg_text,
     )
-
-
-# =======================================================================================================
-class RenderError(RuntimeError):
-    pass
-
-
-# -------------------------------------------------------------------------------------------------------------------
-@dataclass(frozen=True)
-class RenderArtifacts:
-    workdir: Path
-    tex_path: Path
-    pdf_path: Path | None
-    svg_path: Path | None
-    stdout_path: Path
-    stderr_path: Path
-    returncodes: List[int]
-
-    def read_svg(self, *, strip_xml_declaration: bool = True) -> str:
-        if self.svg_path is None or not self.svg_path.exists():
-            raise RenderError("SVG output not produced")
-        txt = self.svg_path.read_text(errors="replace")
-        return strip_svg_xml_declaration(txt) if strip_xml_declaration else txt
 
 
 # -------------------------------------------------------------------------------------------------------------------

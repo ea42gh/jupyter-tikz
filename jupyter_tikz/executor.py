@@ -4,13 +4,12 @@ import os
 import shutil
 import subprocess
 import tempfile
-import threading
-from collections import OrderedDict
 from dataclasses import dataclass
 from hashlib import md5
 from pathlib import Path
 from typing import List, Literal, Optional, Tuple, Union
 
+from jupyter_tikz import cache as _cache
 from jupyter_tikz import policy as _policy
 from jupyter_tikz.artifacts import (
     _canonicalize_svg_output_path,
@@ -42,6 +41,7 @@ resolve_crop_mode = _policy.resolve_crop_mode
 resolve_crop_policy = _policy.resolve_crop_policy
 resolve_toolchain_name = _policy.resolve_toolchain_name
 set_default_toolchain_name = _policy.set_default_toolchain_name
+clear_render_cache = _cache.clear_render_cache
 
 
 def _run_toolchain_in_dir(
@@ -475,16 +475,6 @@ def render_svg(
 # ======================================================================================================
 # Caching
 
-_CACHE_MAXSIZE = int(os.environ.get("JUPYTER_TIKZ_CACHE_SIZE", "64"))
-_CACHE: "OrderedDict[tuple[str, str, str, bool, bool, bool, str], str]" = OrderedDict()
-_CACHE_LOCK = threading.Lock()
-
-
-def clear_render_cache() -> None:
-    with _CACHE_LOCK:
-        _CACHE.clear()
-
-
 def _render_base_svg_cached(
     tex_source: str,
     toolchain_name: str,
@@ -514,27 +504,17 @@ def _render_base_svg_cached(
         inkscape_variant,
         tex_key,
     )
-
-    with _CACHE_LOCK:
-        if key in _CACHE:
-            _CACHE.move_to_end(key)
-            return _CACHE[key]
-
-    svg = _render_base_svg_uncached(
-        tex_source,
-        toolchain_name,
-        output_stem=output_stem,
-        crop_mode=crop_mode,
-        enforce_tight_crop=enforce_tight_crop,
-        exact_bbox=exact_bbox,
+    return _cache.get_or_render_base_svg(
+        key,
+        lambda: _render_base_svg_uncached(
+            tex_source,
+            toolchain_name,
+            output_stem=output_stem,
+            crop_mode=crop_mode,
+            enforce_tight_crop=enforce_tight_crop,
+            exact_bbox=exact_bbox,
+        ),
     )
-
-    with _CACHE_LOCK:
-        _CACHE[key] = svg
-        _CACHE.move_to_end(key)
-        while len(_CACHE) > max(0, _CACHE_MAXSIZE):
-            _CACHE.popitem(last=False)
-    return svg
 
 
 def _render_base_svg_uncached(

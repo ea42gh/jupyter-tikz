@@ -5,6 +5,7 @@ from typing import Optional, Sequence
 
 import pytest
 
+import jupyter_tikz.engine as engine
 import jupyter_tikz.executor as executor
 
 
@@ -75,11 +76,11 @@ def test_render_svg_with_artifacts_postprocess_order(
 
         return _fn
 
-    monkeypatch.setattr(executor, "crop_svg_inplace", _rec("crop"))
-    monkeypatch.setattr(executor, "apply_padding_to_svg_file", _rec("padding"))
+    monkeypatch.setattr(engine, "crop_svg_inplace", _rec("crop"))
+    monkeypatch.setattr(engine, "apply_padding_to_svg_file", _rec("padding"))
     monkeypatch.setattr(executor, "apply_canvas_frame_to_svg_file", _rec("frame"))
 
-    monkeypatch.setattr(executor.subprocess, "run", _fake_subprocess_run_factory("job"))
+    monkeypatch.setattr(engine.subprocess, "run", _fake_subprocess_run_factory("job"))
 
     tex = r"\\documentclass{standalone}\\begin{document}x\\end{document}"
     artifacts = executor.render_svg_with_artifacts(

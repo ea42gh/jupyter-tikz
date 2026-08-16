@@ -1,0 +1,78 @@
+::
+
+  %tikz [-as INPUT_TYPE] [-i] [-f] [-p LATEX_PREAMBLE] [-t TEX_PACKAGES]
+            [-nt] [-l TIKZ_LIBRARIES] [-lp PGFPLOTS_LIBRARIES] [-nj] [-pj]
+            [-pt] [-sc SCALE] [-r] [-d DPI] [-g] [-e] [-k [KEEP_TEMP]]
+            [-tc TOOLCHAIN] [-dg] [-j] [-os OUTPUT_STEM] [-tp TEX_PROGRAM]
+            [-ta TEX_ARGS] [-nc] [-s SAVE_TIKZ] [-st SAVE_TEX] [-sp SAVE_PDF]
+            [-S SAVE_IMAGE] [-sv SAVE_VAR]
+            [code]
+
+positional arguments:
+  code                  the variable in IPython with the Tex/TikZ code
+
+options:
+  -as INPUT_TYPE, --input-type INPUT_TYPE
+                        Type of the input. Possible values are: `full-
+                        document`, `standalone-document` and `tikzpicture`,
+                        e.g., `-as=full-document`. Defaults to
+                        `-as=standalone-document`.
+  -i, --implicit-pic    Alias for `-as=tikzpicture`.
+  -f, --full-document   Alias for `-as=full-document`.
+  -p LATEX_PREAMBLE, --latex-preamble LATEX_PREAMBLE
+                        LaTeX preamble to insert before the document, e.g.,
+                        `-p "$preamble"`, with the preamble being an IPython
+                        variable.
+  -t TEX_PACKAGES, --tex-packages TEX_PACKAGES
+                        Comma-separated list of TeX packages, e.g.,
+                        `-t=amsfonts,amsmath`.
+  -nt, --no-tikz        Force to not import the TikZ package.
+  -l TIKZ_LIBRARIES, --tikz-libraries TIKZ_LIBRARIES
+                        Comma-separated list of TikZ libraries, e.g.,
+                        `-l=calc,arrows`.
+  -lp PGFPLOTS_LIBRARIES, --pgfplots-libraries PGFPLOTS_LIBRARIES
+                        Comma-separated list of pgfplots libraries, e.g.,
+                        `-pl=groupplots,external`.
+  -nj, --no-jinja       Disable Jinja2 rendering.
+  -pj, --print-jinja    Print the rendered Jinja2 template.
+  -pt, --print-tex      Print the full LaTeX document.
+  -sc SCALE, --scale SCALE
+                        The scale factor to apply to the TikZ diagram, e.g.,
+                        `-sc=0.5`. Defaults to `-sc=1.0`.
+  -r, --rasterize       Output a rasterized image (PNG) instead of SVG.
+  -d DPI, --dpi DPI     DPI to use when rasterizing the image, e.g.,
+                        `--dpi=300`. Defaults to `-d=96`.
+  -g, --gray            Set grayscale to the rasterized image.
+  -e, --full-err        Print the full error message when an error occurs.
+  -k <[KEEP_TEMP]>, --keep-temp <[KEEP_TEMP]>
+                        Keep temporary files; optionally provide an output
+                        directory, e.g., `-k` or `-k=outputs/tmp`.
+  -tc TOOLCHAIN, --toolchain TOOLCHAIN
+                        Explicit executor toolchain name, e.g.,
+                        `--toolchain=pdftex_pdftocairo`.
+  -dg, --diagnose       Print toolchain diagnostics and skip rendering.
+  -j, --json, -json     Use JSON output with `--diagnose`.
+  -os OUTPUT_STEM, --output-stem OUTPUT_STEM
+                        Output stem for temporary/kept artifact filenames,
+                        e.g., `--output-stem=my_render`.
+  -tp TEX_PROGRAM, --tex-program TEX_PROGRAM
+                        TeX program to use for compilation, e.g.,
+                        `-tp=xelatex` or `-tp=lualatex`. Defaults to
+                        `-tp=pdflatex`.
+  -ta TEX_ARGS, --tex-args TEX_ARGS
+                        Arguments to pass to the TeX program, e.g., `-ta
+                        "$tex_args_ipython_variable"`.
+  -nc, --no-compile     Do not compile the TeX code.
+  -s SAVE_TIKZ, --save-tikz SAVE_TIKZ
+                        Save the TikZ code to file, e.g., `-s filename.tikz`.
+  -st SAVE_TEX, --save-tex SAVE_TEX
+                        Save full LaTeX code to file, e.g., `-st
+                        filename.tex`.
+  -sp SAVE_PDF, --save-pdf SAVE_PDF
+                        Save PDF file, e.g., `-sp filename.pdf`.
+  -S SAVE_IMAGE, --save-image SAVE_IMAGE
+                        Save the output image to file, e.g., `-S
+                        filename.png`.
+  -sv SAVE_VAR, --save-var SAVE_VAR
+                        Save the TikZ or LaTeX code to an IPython variable,
+                        e.g., `-sv my_var`.

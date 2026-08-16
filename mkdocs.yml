@@ -1,0 +1,79 @@
+site_name: Jupyter-TikZ
+site_author: Lucas Lima Rodrigues
+site_description: IPython Magics for rendering TeX/TikZ in Jupyter Notebooks
+repo_url: https://github.com/lucaslrodri/jupyter-tikz/
+site_url: https://jupyter-tikz.readthedocs.io/stable/
+
+theme:
+  name: material
+  custom_dir: docs/overrides
+  logo: assets/logo.svg
+  favicon: assets/favicon.svg
+  language: en
+  palette:
+    primary: white
+    accent: custom
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - content.code.copy
+    - content.code.annotate
+    - navigation.tabs
+    - navigation.footer
+    - navigation.top
+    - navigation.tracking
+    - search.highlight
+    - search.suggest
+    - toc.follow
+
+nav:
+  - Getting started: index.md
+  - Installation: installation.md
+  - Usage guide:
+      - Usage as IPython Magics: usage/as-magic.md
+      - Usage as a Python package: usage/as-package.md
+      - Troubleshooting: usage/troubleshooting.md
+  - Additional options: arguments.md
+  - API reference: api.md
+  - About:
+      - Development guide: about/development.md
+      - Changelog: about/changelog.md
+      - License: about/license.md
+
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - javascripts/extra.js
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/lucaslrodri/jupyter-tikz/
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/jupyter-tikz/
+
+copyright: Copyright &copy; 2024 Lucas Lima Rodrigues
+
+markdown_extensions:
+  - attr_list
+  - md_in_html
+  - admonition
+  - pymdownx.superfences
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+plugins:
+  - search
+  - macros
+  - social
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths: [.]
+          options:
+            show_source: true
+            heading_level: 2
+            show_root_heading: true

@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pytest
 
+import jupyter_tikz.render_base as rb
+
 
 def test_render_svg_keeps_artifacts_on_failure(monkeypatch):
     import jupyter_tikz.executor as ex
@@ -88,7 +90,7 @@ def test_render_svg_with_artifacts_includes_diagnostics_tail(monkeypatch, tmp_pa
     assert "latex log" in msg
 
 
-def test_render_base_svg_uncached_includes_full_diagnostics(monkeypatch, tmp_path):
+def test_render_base_svg_uncached_includes_full_diagnostics(monkeypatch):
     import jupyter_tikz.executor as ex
 
     def fake_run_toolchain_in_dir(
@@ -109,10 +111,10 @@ def test_render_base_svg_uncached_includes_full_diagnostics(monkeypatch, tmp_pat
             returncodes=[1],
         )
 
-    monkeypatch.setattr(ex, "_run_toolchain_in_dir", fake_run_toolchain_in_dir)
+    monkeypatch.setattr(rb, "run_toolchain_in_dir", fake_run_toolchain_in_dir)
 
     with pytest.raises(ex.RenderError) as ei:
-        ex._render_base_svg_uncached(
+        rb.render_base_svg_uncached(
             "\\documentclass{article}\\begin{document}x\\end{document}",
             "pdftex_pdftocairo",
             output_stem="output",

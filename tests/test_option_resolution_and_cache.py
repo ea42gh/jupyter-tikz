@@ -42,6 +42,7 @@ def test_padding_normalization_forms():
 def test_cache_separates_base_svg_from_padding(monkeypatch):
     """Changing padding should not re-run the base render."""
     import jupyter_tikz.executor as ex
+    import jupyter_tikz.render_base as rb
     from jupyter_tikz import render_svg
 
     ex.clear_render_cache()
@@ -60,7 +61,7 @@ def test_cache_separates_base_svg_from_padding(monkeypatch):
         calls["n"] += 1
         return '<svg viewBox="0 0 10 10"></svg>'
 
-    monkeypatch.setattr(ex, "_render_base_svg_uncached", fake_uncached)
+    monkeypatch.setattr(rb, "render_base_svg_uncached", fake_uncached)
 
     tex = "\\documentclass{article}\\begin{document}x\\end{document}"
 

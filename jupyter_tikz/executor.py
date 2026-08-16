@@ -8,9 +8,7 @@ from typing import Literal, Optional, Union
 
 from jupyter_tikz import artifacts as _artifacts
 from jupyter_tikz import cache as _cache
-from jupyter_tikz import commands as _commands
 from jupyter_tikz import policy as _policy
-from jupyter_tikz import process as _process
 from jupyter_tikz import render_base as _render_base
 from jupyter_tikz.canvas_frame import (
     apply_canvas_frame_to_svg_file,
@@ -32,12 +30,6 @@ resolve_crop_policy = _policy.resolve_crop_policy
 resolve_toolchain_name = _policy.resolve_toolchain_name
 set_default_toolchain_name = _policy.set_default_toolchain_name
 clear_render_cache = _cache.clear_render_cache
-_find_svg_output_path = _artifacts._find_svg_output_path
-_resolve_artifacts_target = _artifacts._resolve_artifacts_target
-build_commands = _commands.build_commands
-_build_subprocess_env = _process._build_subprocess_env
-_render_base_svg_cached = _render_base._render_base_svg_cached
-_render_base_svg_uncached = _render_base._render_base_svg_uncached
 
 
 # -------------------------------------------------------------------------------------------------------------------
@@ -189,7 +181,7 @@ def render_svg(
 
     # In-memory cache only applies when we are not asked to write artifacts.
     if cache and artifacts_path is None and artifacts_prefix is None and pad.is_zero():
-        base = _render_base_svg_cached(
+        base = _render_base.render_base_svg_cached(
             tex_source,
             resolved_toolchain,
             output_stem=output_stem,
@@ -207,7 +199,7 @@ def render_svg(
         and artifacts_prefix is None
         and (not pad.is_zero())
     ):
-        base = _render_base_svg_cached(
+        base = _render_base.render_base_svg_cached(
             tex_source,
             resolved_toolchain,
             output_stem=output_stem,
@@ -220,7 +212,7 @@ def render_svg(
             svg = apply_canvas_frame_to_svg_text(svg, frame)
         return _maybe_strip(svg)
 
-    workdir, stem, cleanup_on_success = _resolve_artifacts_target(
+    workdir, stem, cleanup_on_success = _artifacts.resolve_artifacts_target(
         tex_source,
         output_stem=output_stem,
         artifacts_path=artifacts_path,
@@ -260,5 +252,6 @@ def render_svg(
     finally:
         if cleanup_on_success and ok:
             shutil.rmtree(workdir, ignore_errors=True)
+
 
 

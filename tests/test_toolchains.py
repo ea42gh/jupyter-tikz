@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from jupyter_tikz.errors import InvalidToolchainError
-from jupyter_tikz.executor import build_commands
+from jupyter_tikz.commands import build_commands
 from jupyter_tikz.toolchains import TOOLCHAINS, check_toolchain, check_toolchains
 
 
@@ -121,3 +121,4 @@ def test_check_toolchains_includes_registry_keys(monkeypatch):
     report = check_toolchains()
     assert sorted(report.keys()) == sorted(TOOLCHAINS.keys())
     assert all(v["available"] for v in report.values())
+

@@ -111,9 +111,3 @@ def run_latex_passes(
     return returncodes, stdout_chunks, stderr_chunks
 
 
-# Compatibility aliases for older executor-internal imports.
-_build_subprocess_env = build_subprocess_env
-_file_digest = file_digest
-_latex_requests_rerun = latex_requests_rerun
-_run_latex_passes = run_latex_passes
-_env_truthy = env_truthy

@@ -124,7 +124,3 @@ def resolve_artifacts_target(
     return p, f"{safe_stem}-{h8}", False
 
 
-# Compatibility aliases for older tests/imports that reached into executor internals.
-_find_svg_output_path = find_svg_output_path
-_canonicalize_svg_output_path = canonicalize_svg_output_path
-_resolve_artifacts_target = resolve_artifacts_target

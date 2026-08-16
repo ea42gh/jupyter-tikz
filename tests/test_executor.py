@@ -6,7 +6,8 @@ import pytest
 import jupyter_tikz.executor as ex
 from jupyter_tikz.errors import InvalidOutputStemError, InvalidToolchainError
 from jupyter_tikz.artifacts import find_svg_output_path
-from jupyter_tikz.executor import _find_svg_output_path, build_commands
+from jupyter_tikz.commands import build_commands
+from jupyter_tikz.process import build_subprocess_env
 from jupyter_tikz.naming import validate_output_stem
 from jupyter_tikz.toolchains import TOOLCHAINS
 
@@ -50,16 +51,13 @@ def test_find_svg_output_path_falls_back_to_lexicographic(tmp_path):
     assert p == tmp_path / "out-bar.svg"
 
 
-def test_executor_keeps_find_svg_output_path_compat_alias():
-    assert _find_svg_output_path is find_svg_output_path
-
 
 def test_build_subprocess_env_includes_source_cwd_by_default(monkeypatch):
     monkeypatch.delenv("JUPYTER_TIKZ_DISABLE_CWD_TEXINPUTS", raising=False)
     monkeypatch.setenv("TEXINPUTS", "foo")
     source_cwd = Path("repo/notebooks").resolve()
 
-    env = ex._build_subprocess_env(source_cwd=source_cwd)
+    env = build_subprocess_env(source_cwd=source_cwd)
 
     assert env["TEXINPUTS"] == os.pathsep.join([".", str(source_cwd), "foo"])
 
@@ -68,7 +66,7 @@ def test_build_subprocess_env_can_disable_cwd_injection(monkeypatch):
     monkeypatch.setenv("JUPYTER_TIKZ_DISABLE_CWD_TEXINPUTS", "1")
     monkeypatch.setenv("TEXINPUTS", "foo")
 
-    env = ex._build_subprocess_env(source_cwd=Path("repo/notebooks").resolve())
+    env = build_subprocess_env(source_cwd=Path("repo/notebooks").resolve())
 
     assert env["TEXINPUTS"] == "foo"
 
@@ -99,3 +97,4 @@ def test_render_svg_rejects_unknown_toolchain():
             toolchain_name="nope",
             cache=False,
         )
+

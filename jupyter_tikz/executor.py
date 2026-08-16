@@ -25,6 +25,11 @@ from jupyter_tikz.diagnostics import format_toolchain_failure
 from jupyter_tikz.errors import InvalidToolchainError
 from jupyter_tikz.naming import validate_output_stem
 from jupyter_tikz.paths import validate_user_output_path
+from jupyter_tikz.process import (
+    _build_subprocess_env,
+    _env_truthy,
+    _run_latex_passes,
+)
 from jupyter_tikz.svg_box import (
     Padding,
     apply_padding_to_svg_file,
@@ -35,101 +40,6 @@ from jupyter_tikz.svg_normalize import strip_svg_xml_declaration
 from jupyter_tikz.toolchains import TOOLCHAINS, Toolchain
 
 # from typing import Sequence
-
-
-# =======================================================================================================
-def _build_subprocess_env(*, source_cwd: Path | None = None) -> dict[str, str]:
-    """Build subprocess env with a TeX search path that includes caller CWD.
-
-    By default we keep executor builds isolated in a temp workdir, but still
-    allow relative TeX inputs (e.g. ``\\input{grid.tikz}``, PGFPlots
-    ``table {data.tsv}``) from the notebook/project directory.
-
-    Set ``JUPYTER_TIKZ_DISABLE_CWD_TEXINPUTS=1`` to opt out of this behavior.
-    """
-
-    env = os.environ.copy()
-    if _env_truthy("JUPYTER_TIKZ_DISABLE_CWD_TEXINPUTS"):
-        return env
-
-    cwd = str((source_cwd or Path.cwd()).resolve())
-    texinputs = env.get("TEXINPUTS", "")
-    prefix = os.pathsep.join([".", cwd])
-    if texinputs:
-        env["TEXINPUTS"] = os.pathsep.join([prefix, texinputs])
-    else:
-        # Keep the trailing separator so TeX also searches its default paths.
-        env["TEXINPUTS"] = prefix + os.pathsep
-    return env
-
-
-_LATEX_RERUN_MARKERS: tuple[str, ...] = (
-    "Label(s) may have changed. Rerun to get cross-references right.",
-    "Rerun to get citations correct.",
-    "Rerun to get outlines right",
-    "rerunfilecheck Warning: File",
-    "There were undefined references.",
-)
-
-
-def _file_digest(path: Path) -> str | None:
-    try:
-        if not path.exists():
-            return None
-        return md5(path.read_bytes()).hexdigest()
-    except Exception:
-        return None
-
-
-def _latex_requests_rerun(stdout: str, stderr: str, log_path: Path) -> bool:
-    haystacks = [stdout or "", stderr or ""]
-    try:
-        if log_path.exists():
-            haystacks.append(log_path.read_text(errors="replace"))
-    except Exception:
-        pass
-    return any(marker in hay for hay in haystacks for marker in _LATEX_RERUN_MARKERS)
-
-
-def _run_latex_passes(
-    toolchain: Toolchain,
-    tex_path: Path,
-    *,
-    workdir: Path,
-    env: dict[str, str],
-) -> tuple[List[int], List[str], List[str]]:
-    returncodes: List[int] = []
-    stdout_chunks: List[str] = []
-    stderr_chunks: List[str] = []
-    aux_path = workdir / f"{tex_path.stem}.aux"
-    log_path = workdir / f"{tex_path.stem}.log"
-    prev_aux_digest: str | None = None
-
-    for pass_num in range(max(1, int(toolchain.max_passes))):
-        proc = subprocess.run(
-            list(toolchain.latex_cmd) + [tex_path.name],
-            cwd=str(workdir),
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-        returncodes.append(proc.returncode)
-        stdout_chunks.append(proc.stdout)
-        stderr_chunks.append(proc.stderr)
-
-        if proc.returncode != 0:
-            break
-
-        aux_digest = _file_digest(aux_path)
-        rerun = _latex_requests_rerun(proc.stdout, proc.stderr, log_path)
-        if pass_num + 1 >= max(1, int(toolchain.max_passes)):
-            break
-        if not rerun and aux_digest == prev_aux_digest:
-            break
-        prev_aux_digest = aux_digest
-
-    return returncodes, stdout_chunks, stderr_chunks
 
 
 def _run_toolchain_in_dir(
@@ -585,17 +495,6 @@ _FAST_DEFAULT_TOOLCHAIN_CANDIDATES: tuple[str, ...] = (
 )
 
 _DEFAULT_TOOLCHAIN_OVERRIDE: str | None = None
-
-
-def _env_truthy(name: str) -> bool:
-    """Return True if an environment variable is set to a truthy value.
-
-    Accepted truthy values (case-insensitive): 1, true, yes, on.
-    """
-    v = os.environ.get(name)
-    if v is None:
-        return False
-    return v.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def set_default_toolchain_name(toolchain_name: str | None) -> None:

@@ -5,6 +5,7 @@ import pytest
 
 import jupyter_tikz.executor as ex
 from jupyter_tikz.errors import InvalidOutputStemError, InvalidToolchainError
+from jupyter_tikz.artifacts import find_svg_output_path
 from jupyter_tikz.executor import _find_svg_output_path, build_commands
 from jupyter_tikz.naming import validate_output_stem
 from jupyter_tikz.toolchains import TOOLCHAINS
@@ -28,7 +29,7 @@ def test_find_svg_output_path_prefers_exact_svg(tmp_path):
     (tmp_path / "out-1.svg").write_text("<svg/>")
     (tmp_path / "out.svg").write_text("<svg id='exact'/>")
 
-    p = _find_svg_output_path(tmp_path, "out")
+    p = find_svg_output_path(tmp_path, "out")
     assert p == tmp_path / "out.svg"
 
 
@@ -37,7 +38,7 @@ def test_find_svg_output_path_chooses_lowest_numeric_suffix(tmp_path):
     (tmp_path / "out-2.svg").write_text("<svg id='2'/>")
     (tmp_path / "out-1.svg").write_text("<svg id='1'/>")
 
-    p = _find_svg_output_path(tmp_path, "out")
+    p = find_svg_output_path(tmp_path, "out")
     assert p == tmp_path / "out-1.svg"
 
 
@@ -45,8 +46,12 @@ def test_find_svg_output_path_falls_back_to_lexicographic(tmp_path):
     (tmp_path / "out-foo.svg").write_text("<svg id='foo'/>")
     (tmp_path / "out-bar.svg").write_text("<svg id='bar'/>")
 
-    p = _find_svg_output_path(tmp_path, "out")
+    p = find_svg_output_path(tmp_path, "out")
     assert p == tmp_path / "out-bar.svg"
+
+
+def test_executor_keeps_find_svg_output_path_compat_alias():
+    assert _find_svg_output_path is find_svg_output_path
 
 
 def test_build_subprocess_env_includes_source_cwd_by_default(monkeypatch):

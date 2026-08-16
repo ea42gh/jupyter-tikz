@@ -2,34 +2,27 @@ from __future__ import annotations
 
 import os
 import shutil
-import subprocess
 import tempfile
 from hashlib import md5
 from pathlib import Path
 from typing import Literal, Optional, Union
 
+from jupyter_tikz import artifacts as _artifacts
 from jupyter_tikz import cache as _cache
+from jupyter_tikz import commands as _commands
 from jupyter_tikz import policy as _policy
-from jupyter_tikz.artifacts import (
-    _canonicalize_svg_output_path,
-    _find_svg_output_path,
-    _resolve_artifacts_target,
-)
+from jupyter_tikz import process as _process
 from jupyter_tikz.canvas_frame import (
     apply_canvas_frame_to_svg_file,
     apply_canvas_frame_to_svg_text,
 )
-from jupyter_tikz.commands import build_commands
-from jupyter_tikz.crop import crop_svg_inplace
 from jupyter_tikz.diagnostics import format_toolchain_failure
 from jupyter_tikz.engine import _run_toolchain_in_dir
 from jupyter_tikz.errors import InvalidToolchainError
 from jupyter_tikz.naming import validate_output_stem
-from jupyter_tikz.process import _build_subprocess_env, _run_latex_passes
 from jupyter_tikz.render_types import ExecutionResult, RenderArtifacts, RenderError
 from jupyter_tikz.svg_box import (
     Padding,
-    apply_padding_to_svg_file,
     apply_padding_to_svg_text,
     normalize_padding,
 )
@@ -43,6 +36,10 @@ resolve_crop_policy = _policy.resolve_crop_policy
 resolve_toolchain_name = _policy.resolve_toolchain_name
 set_default_toolchain_name = _policy.set_default_toolchain_name
 clear_render_cache = _cache.clear_render_cache
+_find_svg_output_path = _artifacts._find_svg_output_path
+_resolve_artifacts_target = _artifacts._resolve_artifacts_target
+build_commands = _commands.build_commands
+_build_subprocess_env = _process._build_subprocess_env
 
 
 # -------------------------------------------------------------------------------------------------------------------
@@ -114,71 +111,32 @@ def run_toolchain(
     strip_xml_declaration: bool = True,
 ) -> ExecutionResult:
     output_stem = validate_output_stem(output_stem)
-    returncodes = []
-    stdout = []
-    stderr = []
+    crop_mode, enforce_tight_crop = resolve_crop_policy(crop, toolchain)
+    pad = normalize_padding(padding)
     svg_text = None
 
     with tempfile.TemporaryDirectory() as tmp:
         workdir = Path(tmp)
-
-        tex_file = workdir / f"{output_stem}.tex"
-        tex_file.write_text(tex_source)
-
-        crop_mode, enforce_tight_crop = resolve_crop_policy(crop, toolchain)
-        pad = normalize_padding(padding)
-        commands = build_commands(
+        artifacts = _run_toolchain_in_dir(
             toolchain,
-            tex_file,
-            output_stem,
-            crop_mode=crop_mode,
-            exact_bbox=exact_bbox,
-        )
-        run_env = _build_subprocess_env()
-        latex_rcs, latex_stdout, latex_stderr = _run_latex_passes(
-            toolchain,
-            tex_file,
-            workdir=workdir,
-            env=run_env,
-        )
-        returncodes.extend(latex_rcs)
-        stdout.extend(latex_stdout)
-        stderr.extend(latex_stderr)
-        commands = commands[1:] if (not returncodes or returncodes[-1] == 0) else []
-
-        for cmd in commands:
-            proc = subprocess.run(
-                cmd,
-                cwd=str(workdir),  # ← str() is correct
-                env=run_env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-            returncodes.append(proc.returncode)
-            stdout.append(proc.stdout)
-            stderr.append(proc.stderr)
-
-            if proc.returncode != 0:
-                break
-
-        svg_path = _canonicalize_svg_output_path(
+            tex_source,
             workdir,
             output_stem,
-            _find_svg_output_path(workdir, output_stem),
+            crop_mode=crop_mode,
+            enforce_tight_crop=enforce_tight_crop,
+            exact_bbox=exact_bbox,
+            padding=pad,
         )
-        if svg_path is not None and svg_path.exists():
-            if enforce_tight_crop and crop_mode == "tight":
-                crop_svg_inplace(svg_path)
-            if not pad.is_zero():
-                apply_padding_to_svg_file(svg_path, pad)
-            svg_text = svg_path.read_text(errors="replace")
-            if strip_xml_declaration and svg_text is not None:
-                svg_text = strip_svg_xml_declaration(svg_text)
+
+        if artifacts.svg_path is not None and artifacts.svg_path.exists():
+            svg_text = artifacts.read_svg(strip_xml_declaration=strip_xml_declaration)
             if frame and svg_text is not None:
                 svg_text = apply_canvas_frame_to_svg_text(svg_text, frame)
 
-    # ← temp directory is cleaned up here, safely
+        stdout = [artifacts.stdout_path.read_text(errors="replace")]
+        stderr = [artifacts.stderr_path.read_text(errors="replace")]
+        returncodes = artifacts.returncodes
+
     return ExecutionResult(
         returncodes=returncodes,
         stdout=stdout,

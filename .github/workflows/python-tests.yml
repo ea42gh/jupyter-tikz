@@ -24,7 +24,7 @@ jobs:
       - name: Run ruff
         run: poetry run task lint_check
 
-      - name: Run mypy subset
+      - name: Run mypy
         run: poetry run task type_check
 
   validation-cross-platform:

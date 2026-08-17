@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import shutil
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Optional, Union
 
@@ -31,6 +32,58 @@ resolve_toolchain_name = _policy.resolve_toolchain_name
 set_default_toolchain_name = _policy.set_default_toolchain_name
 clear_render_cache = _cache.clear_render_cache
 
+@dataclass(frozen=True)
+class _ResolvedRenderOptions:
+    toolchain_name: str
+    toolchain: Toolchain
+    output_stem: str
+    crop_mode: Literal["tight", "page", "none"]
+    enforce_tight_crop: bool
+    padding: object
+
+
+def _resolve_render_options(
+    *,
+    toolchain_name: str | None,
+    output_stem: str,
+    crop: Literal["tight", "page", "none"] | None,
+    padding,
+) -> _ResolvedRenderOptions:
+    resolved_toolchain = resolve_toolchain_name(toolchain_name)
+    resolved_stem = validate_output_stem(output_stem)
+    if resolved_toolchain not in TOOLCHAINS:
+        raise InvalidToolchainError(f"Unknown toolchain: {resolved_toolchain}")
+
+    toolchain = TOOLCHAINS[resolved_toolchain]
+    crop_mode, enforce_tight_crop = resolve_crop_policy(crop, toolchain)
+    return _ResolvedRenderOptions(
+        toolchain_name=resolved_toolchain,
+        toolchain=toolchain,
+        output_stem=resolved_stem,
+        crop_mode=crop_mode,
+        enforce_tight_crop=enforce_tight_crop,
+        padding=normalize_padding(padding),
+    )
+
+
+def _raise_for_bad_artifacts(
+    artifacts: RenderArtifacts,
+    *,
+    workdir: Path,
+    output_stem: str,
+) -> None:
+    if not artifacts.returncodes or artifacts.returncodes[-1] != 0:
+        raise RenderError(
+            format_toolchain_failure(
+                artifacts,
+                workdir=workdir,
+                output_stem=output_stem,
+            )
+        )
+
+    if artifacts.svg_path is None:
+        raise RenderError(f"SVG output not produced.\nArtifacts kept at: {workdir}.")
+
 
 # -------------------------------------------------------------------------------------------------------------------
 def render_svg_with_artifacts(
@@ -48,39 +101,30 @@ def render_svg_with_artifacts(
     Compile TeX and keep artifacts in output_dir.
     Returns paths to .tex/.pdf/.svg and captured stdout/stderr.
     """
-    resolved_toolchain = resolve_toolchain_name(toolchain_name)
-    output_stem = validate_output_stem(output_stem)
-    if resolved_toolchain not in TOOLCHAINS:
-        raise InvalidToolchainError(f"Unknown toolchain: {resolved_toolchain}")
-
-    tc = TOOLCHAINS[resolved_toolchain]
-    crop_mode, enforce_tight_crop = resolve_crop_policy(crop, tc)
-    pad = normalize_padding(padding)
+    opts = _resolve_render_options(
+        toolchain_name=toolchain_name,
+        output_stem=output_stem,
+        crop=crop,
+        padding=padding,
+    )
+    outdir = Path(output_dir)
 
     artifacts = _run_toolchain_in_dir(
-        tc,
+        opts.toolchain,
         tex_source,
-        Path(output_dir),
-        output_stem,
-        crop_mode=crop_mode,
-        enforce_tight_crop=enforce_tight_crop,
+        outdir,
+        opts.output_stem,
+        crop_mode=opts.crop_mode,
+        enforce_tight_crop=opts.enforce_tight_crop,
         exact_bbox=exact_bbox,
-        padding=pad,
+        padding=opts.padding,
     )
 
-    if not artifacts.returncodes or artifacts.returncodes[-1] != 0:
-        raise RenderError(
-            format_toolchain_failure(
-                artifacts,
-                workdir=Path(output_dir),
-                output_stem=output_stem,
-            )
-        )
-
-    if artifacts.svg_path is None:
-        raise RenderError(
-            f"SVG output not produced.\nArtifacts kept at: {Path(output_dir)}."
-        )
+    _raise_for_bad_artifacts(
+        artifacts,
+        workdir=outdir,
+        output_stem=opts.output_stem,
+    )
 
     if frame and artifacts.svg_path is not None:
         apply_canvas_frame_to_svg_file(artifacts.svg_path, frame)
@@ -161,18 +205,17 @@ def render_svg(
     For deeper debugging, set ``JUPYTER_TIKZ_KEEP_TEMP=1`` to keep the temporary
     build directory; the exception message will include the path.
     """
-    resolved_toolchain = resolve_toolchain_name(toolchain_name)
-    output_stem = validate_output_stem(output_stem)
-    if resolved_toolchain not in TOOLCHAINS:
-        raise InvalidToolchainError(f"Unknown toolchain: {resolved_toolchain}")
+    opts = _resolve_render_options(
+        toolchain_name=toolchain_name,
+        output_stem=output_stem,
+        crop=crop,
+        padding=padding,
+    )
 
-    tc = TOOLCHAINS[resolved_toolchain]
     # When the caller asks to persist artifacts, caching would bypass writing
     # .tex/.svg/.stdout/.stderr files.
     if artifacts_path is not None or artifacts_prefix is not None:
         cache = False
-    crop_mode, enforce_tight_crop = resolve_crop_policy(crop, tc)
-    pad = normalize_padding(padding)
 
     def _maybe_strip(svg_text: str) -> str:
         return (
@@ -180,13 +223,13 @@ def render_svg(
         )
 
     # In-memory cache only applies when we are not asked to write artifacts.
-    if cache and artifacts_path is None and artifacts_prefix is None and pad.is_zero():
+    if cache and artifacts_path is None and artifacts_prefix is None and opts.padding.is_zero():
         base = _render_base.render_base_svg_cached(
             tex_source,
-            resolved_toolchain,
-            output_stem=output_stem,
-            crop_mode=crop_mode,
-            enforce_tight_crop=enforce_tight_crop,
+            opts.toolchain_name,
+            output_stem=opts.output_stem,
+            crop_mode=opts.crop_mode,
+            enforce_tight_crop=opts.enforce_tight_crop,
             exact_bbox=exact_bbox,
         )
         if frame:
@@ -197,24 +240,24 @@ def render_svg(
         cache
         and artifacts_path is None
         and artifacts_prefix is None
-        and (not pad.is_zero())
+        and (not opts.padding.is_zero())
     ):
         base = _render_base.render_base_svg_cached(
             tex_source,
-            resolved_toolchain,
-            output_stem=output_stem,
-            crop_mode=crop_mode,
-            enforce_tight_crop=enforce_tight_crop,
+            opts.toolchain_name,
+            output_stem=opts.output_stem,
+            crop_mode=opts.crop_mode,
+            enforce_tight_crop=opts.enforce_tight_crop,
             exact_bbox=exact_bbox,
         )
-        svg = apply_padding_to_svg_text(base, pad)
+        svg = apply_padding_to_svg_text(base, opts.padding)
         if frame:
             svg = apply_canvas_frame_to_svg_text(svg, frame)
         return _maybe_strip(svg)
 
     workdir, stem, cleanup_on_success = _artifacts.resolve_artifacts_target(
         tex_source,
-        output_stem=output_stem,
+        output_stem=opts.output_stem,
         artifacts_path=artifacts_path,
         artifacts_prefix=artifacts_prefix,
     )
@@ -222,25 +265,18 @@ def render_svg(
     ok = False
     try:
         artifacts = _run_toolchain_in_dir(
-            tc,
+            opts.toolchain,
             tex_source,
             workdir,
             stem,
-            crop_mode=crop_mode,
-            enforce_tight_crop=enforce_tight_crop,
+            crop_mode=opts.crop_mode,
+            enforce_tight_crop=opts.enforce_tight_crop,
             exact_bbox=exact_bbox,
-            padding=pad,
+            padding=opts.padding,
         )
 
-        if not artifacts.returncodes or artifacts.returncodes[-1] != 0:
-            raise RenderError(
-                format_toolchain_failure(artifacts, workdir=workdir, output_stem=stem)
-            )
+        _raise_for_bad_artifacts(artifacts, workdir=workdir, output_stem=stem)
 
-        if artifacts.svg_path is None:
-            raise RenderError(
-                f"SVG output not produced.\nArtifacts kept at: {workdir}."
-            )
 
         if frame and artifacts.svg_path is not None:
             apply_canvas_frame_to_svg_file(artifacts.svg_path, frame)

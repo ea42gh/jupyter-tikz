@@ -20,7 +20,7 @@ from jupyter_tikz.engine import _run_toolchain_in_dir
 from jupyter_tikz.errors import InvalidToolchainError
 from jupyter_tikz.naming import validate_output_stem
 from jupyter_tikz.render_types import ExecutionResult, RenderArtifacts, RenderError
-from jupyter_tikz.svg_box import apply_padding_to_svg_text, normalize_padding
+from jupyter_tikz.svg_box import Padding, apply_padding_to_svg_text, normalize_padding
 from jupyter_tikz.svg_normalize import strip_svg_xml_declaration
 from jupyter_tikz.toolchains import TOOLCHAINS, Toolchain
 
@@ -39,7 +39,7 @@ class _ResolvedRenderOptions:
     output_stem: str
     crop_mode: Literal["tight", "page", "none"]
     enforce_tight_crop: bool
-    padding: object
+    padding: Padding
 
 
 def _resolve_render_options(

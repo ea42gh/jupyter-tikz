@@ -85,6 +85,27 @@ def _raise_for_bad_artifacts(
         raise RenderError(f"SVG output not produced.\nArtifacts kept at: {workdir}.")
 
 
+def _render_cached_svg(
+    tex_source: str,
+    *,
+    opts: _ResolvedRenderOptions,
+    exact_bbox: bool,
+    frame,
+) -> str:
+    svg = _render_base.render_base_svg_cached(
+        tex_source,
+        opts.toolchain_name,
+        output_stem=opts.output_stem,
+        crop_mode=opts.crop_mode,
+        enforce_tight_crop=opts.enforce_tight_crop,
+        exact_bbox=exact_bbox,
+    )
+    if not opts.padding.is_zero():
+        svg = apply_padding_to_svg_text(svg, opts.padding)
+    if frame:
+        svg = apply_canvas_frame_to_svg_text(svg, frame)
+    return svg
+
 # -------------------------------------------------------------------------------------------------------------------
 def render_svg_with_artifacts(
     tex_source: str,
@@ -223,37 +244,15 @@ def render_svg(
         )
 
     # In-memory cache only applies when we are not asked to write artifacts.
-    if cache and artifacts_path is None and artifacts_prefix is None and opts.padding.is_zero():
-        base = _render_base.render_base_svg_cached(
-            tex_source,
-            opts.toolchain_name,
-            output_stem=opts.output_stem,
-            crop_mode=opts.crop_mode,
-            enforce_tight_crop=opts.enforce_tight_crop,
-            exact_bbox=exact_bbox,
+    if cache and artifacts_path is None and artifacts_prefix is None:
+        return _maybe_strip(
+            _render_cached_svg(
+                tex_source,
+                opts=opts,
+                exact_bbox=exact_bbox,
+                frame=frame,
+            )
         )
-        if frame:
-            base = apply_canvas_frame_to_svg_text(base, frame)
-        return _maybe_strip(base)
-
-    if (
-        cache
-        and artifacts_path is None
-        and artifacts_prefix is None
-        and (not opts.padding.is_zero())
-    ):
-        base = _render_base.render_base_svg_cached(
-            tex_source,
-            opts.toolchain_name,
-            output_stem=opts.output_stem,
-            crop_mode=opts.crop_mode,
-            enforce_tight_crop=opts.enforce_tight_crop,
-            exact_bbox=exact_bbox,
-        )
-        svg = apply_padding_to_svg_text(base, opts.padding)
-        if frame:
-            svg = apply_canvas_frame_to_svg_text(svg, frame)
-        return _maybe_strip(svg)
 
     workdir, stem, cleanup_on_success = _artifacts.resolve_artifacts_target(
         tex_source,

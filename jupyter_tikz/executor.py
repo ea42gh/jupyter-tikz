@@ -3,7 +3,6 @@ from __future__ import annotations
 import os
 import shutil
 import tempfile
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Optional, Union
 
@@ -11,59 +10,26 @@ from jupyter_tikz import artifacts as _artifacts
 from jupyter_tikz import cache as _cache
 from jupyter_tikz import policy as _policy
 from jupyter_tikz import render_base as _render_base
+from jupyter_tikz import toolchains as _toolchains
 from jupyter_tikz.canvas_frame import (
     apply_canvas_frame_to_svg_file,
     apply_canvas_frame_to_svg_text,
 )
 from jupyter_tikz.diagnostics import format_toolchain_failure
 from jupyter_tikz.engine import _run_toolchain_in_dir
-from jupyter_tikz.errors import InvalidToolchainError
 from jupyter_tikz.naming import validate_output_stem
+from jupyter_tikz.render_options import ResolvedRenderOptions, resolve_render_options
 from jupyter_tikz.render_types import ExecutionResult, RenderArtifacts, RenderError
-from jupyter_tikz.svg_box import Padding, apply_padding_to_svg_text, normalize_padding
+from jupyter_tikz.svg_box import apply_padding_to_svg_text, normalize_padding
 from jupyter_tikz.svg_normalize import strip_svg_xml_declaration
-from jupyter_tikz.toolchains import TOOLCHAINS, Toolchain
-
-# from typing import Sequence
+from jupyter_tikz.toolchains import Toolchain
 
 resolve_crop_mode = _policy.resolve_crop_mode
 resolve_crop_policy = _policy.resolve_crop_policy
 resolve_toolchain_name = _policy.resolve_toolchain_name
 set_default_toolchain_name = _policy.set_default_toolchain_name
 clear_render_cache = _cache.clear_render_cache
-
-@dataclass(frozen=True)
-class _ResolvedRenderOptions:
-    toolchain_name: str
-    toolchain: Toolchain
-    output_stem: str
-    crop_mode: Literal["tight", "page", "none"]
-    enforce_tight_crop: bool
-    padding: Padding
-
-
-def _resolve_render_options(
-    *,
-    toolchain_name: str | None,
-    output_stem: str,
-    crop: Literal["tight", "page", "none"] | None,
-    padding,
-) -> _ResolvedRenderOptions:
-    resolved_toolchain = resolve_toolchain_name(toolchain_name)
-    resolved_stem = validate_output_stem(output_stem)
-    if resolved_toolchain not in TOOLCHAINS:
-        raise InvalidToolchainError(f"Unknown toolchain: {resolved_toolchain}")
-
-    toolchain = TOOLCHAINS[resolved_toolchain]
-    crop_mode, enforce_tight_crop = resolve_crop_policy(crop, toolchain)
-    return _ResolvedRenderOptions(
-        toolchain_name=resolved_toolchain,
-        toolchain=toolchain,
-        output_stem=resolved_stem,
-        crop_mode=crop_mode,
-        enforce_tight_crop=enforce_tight_crop,
-        padding=normalize_padding(padding),
-    )
+TOOLCHAINS = _toolchains.TOOLCHAINS
 
 
 def _raise_for_bad_artifacts(
@@ -88,7 +54,7 @@ def _raise_for_bad_artifacts(
 def _render_cached_svg(
     tex_source: str,
     *,
-    opts: _ResolvedRenderOptions,
+    opts: ResolvedRenderOptions,
     exact_bbox: bool,
     frame,
 ) -> str:
@@ -122,7 +88,7 @@ def render_svg_with_artifacts(
     Compile TeX and keep artifacts in output_dir.
     Returns paths to .tex/.pdf/.svg and captured stdout/stderr.
     """
-    opts = _resolve_render_options(
+    opts = resolve_render_options(
         toolchain_name=toolchain_name,
         output_stem=output_stem,
         crop=crop,
@@ -226,7 +192,7 @@ def render_svg(
     For deeper debugging, set ``JUPYTER_TIKZ_KEEP_TEMP=1`` to keep the temporary
     build directory; the exception message will include the path.
     """
-    opts = _resolve_render_options(
+    opts = resolve_render_options(
         toolchain_name=toolchain_name,
         output_stem=output_stem,
         crop=crop,

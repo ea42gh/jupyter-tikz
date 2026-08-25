@@ -343,6 +343,3 @@ def apply_padding_to_svg_file(svg_path: Path, padding: Padding) -> None:
     out = apply_padding_to_svg_text(txt, padding)
     svg_path.write_text(out)
 
-
-# Backwards-compat alias (some tests/imports refer to this name)
-apply_viewbox_padding = apply_padding_to_svg_text

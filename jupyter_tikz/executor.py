@@ -15,11 +15,14 @@ from jupyter_tikz.canvas_frame import (
     apply_canvas_frame_to_svg_file,
     apply_canvas_frame_to_svg_text,
 )
-from jupyter_tikz.diagnostics import format_toolchain_failure
 from jupyter_tikz.engine import _run_toolchain_in_dir
 from jupyter_tikz.naming import validate_output_stem
 from jupyter_tikz.render_options import ResolvedRenderOptions, resolve_render_options
-from jupyter_tikz.render_types import ExecutionResult, RenderArtifacts, RenderError
+from jupyter_tikz.render_types import (  # noqa: F401
+    ExecutionResult,
+    RenderArtifacts,
+    RenderError,
+)
 from jupyter_tikz.svg_box import apply_padding_to_svg_text, normalize_padding
 from jupyter_tikz.svg_normalize import strip_svg_xml_declaration
 from jupyter_tikz.toolchains import Toolchain
@@ -30,25 +33,6 @@ resolve_toolchain_name = _policy.resolve_toolchain_name
 set_default_toolchain_name = _policy.set_default_toolchain_name
 clear_render_cache = _cache.clear_render_cache
 TOOLCHAINS = _toolchains.TOOLCHAINS
-
-
-def _raise_for_bad_artifacts(
-    artifacts: RenderArtifacts,
-    *,
-    workdir: Path,
-    output_stem: str,
-) -> None:
-    if not artifacts.returncodes or artifacts.returncodes[-1] != 0:
-        raise RenderError(
-            format_toolchain_failure(
-                artifacts,
-                workdir=workdir,
-                output_stem=output_stem,
-            )
-        )
-
-    if artifacts.svg_path is None:
-        raise RenderError(f"SVG output not produced.\nArtifacts kept at: {workdir}.")
 
 
 def _render_cached_svg(
@@ -107,7 +91,7 @@ def render_svg_with_artifacts(
         padding=opts.padding,
     )
 
-    _raise_for_bad_artifacts(
+    _artifacts.raise_for_bad_artifacts(
         artifacts,
         workdir=outdir,
         output_stem=opts.output_stem,
@@ -240,7 +224,7 @@ def render_svg(
             padding=opts.padding,
         )
 
-        _raise_for_bad_artifacts(artifacts, workdir=workdir, output_stem=stem)
+        _artifacts.raise_for_bad_artifacts(artifacts, workdir=workdir, output_stem=stem)
 
 
         if frame and artifacts.svg_path is not None:

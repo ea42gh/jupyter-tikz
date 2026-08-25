@@ -8,12 +8,31 @@ from hashlib import md5
 from pathlib import Path
 from typing import Optional, Tuple, Union
 
+from jupyter_tikz.diagnostics import format_toolchain_failure
 from jupyter_tikz.naming import validate_output_stem
 from jupyter_tikz.paths import validate_user_output_path
+from jupyter_tikz.render_types import RenderArtifacts, RenderError
 
 _PAGE_SUFFIX_RE_CACHE: dict[str, re.Pattern[str]] = {}
 
 
+def raise_for_bad_artifacts(
+    artifacts: RenderArtifacts,
+    *,
+    workdir: Path,
+    output_stem: str,
+) -> None:
+    if not artifacts.returncodes or artifacts.returncodes[-1] != 0:
+        raise RenderError(
+            format_toolchain_failure(
+                artifacts,
+                workdir=workdir,
+                output_stem=output_stem,
+            )
+        )
+
+    if artifacts.svg_path is None:
+        raise RenderError(f"SVG output not produced.\nArtifacts kept at: {workdir}.")
 def find_svg_output_path(workdir: Path, output_stem: str) -> Path | None:
     """
     Return the SVG file produced by the converter for output_stem, or None.

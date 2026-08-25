@@ -4,7 +4,7 @@ import pytest
 from IPython.display import SVG, Image
 
 from jupyter_tikz import TexDocument
-from tests.conftest import *
+from tests.conftest import EXAMPLE_GOOD_TEX, HASH_EXAMPLE_GOOD_TEX, TIKZ_CODE
 
 
 def test_tikz_code():

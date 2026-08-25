@@ -2,7 +2,7 @@ import pytest
 from IPython.display import SVG
 
 from jupyter_tikz import TexDocument
-from tests.conftest import *
+from tests.conftest import EXAMPLE_GOOD_TEX
 
 EXAMPLE_TIKZ_JINJA_TEMPLATE = """\\begin{tikzpicture}
     \\node[draw] at (0,0) {Hello, (* name *)!};

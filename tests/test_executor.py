@@ -4,11 +4,11 @@ from pathlib import Path
 import pytest
 
 import jupyter_tikz.executor as ex
-from jupyter_tikz.errors import InvalidOutputStemError, InvalidToolchainError
 from jupyter_tikz.artifacts import find_svg_output_path
 from jupyter_tikz.commands import build_commands
-from jupyter_tikz.process import build_subprocess_env
+from jupyter_tikz.errors import InvalidOutputStemError, InvalidToolchainError
 from jupyter_tikz.naming import validate_output_stem
+from jupyter_tikz.process import build_subprocess_env
 from jupyter_tikz.toolchains import TOOLCHAINS
 
 

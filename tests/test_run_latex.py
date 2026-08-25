@@ -1,4 +1,3 @@
-import os
 import shutil
 import subprocess
 from hashlib import md5
@@ -9,7 +8,17 @@ import pytest
 from IPython import display
 
 from jupyter_tikz import TexDocument
-from tests.conftest import *
+from tests.conftest import (
+    ANY_CODE_HASH,
+    DUMMY_COMMAND,
+    EXAMPLE_BAD_TIKZ,
+    EXAMPLE_GOOD_TEX,
+    EXAMPLE_JINJA_TEMPLATE,
+    EXAMPLE_PARENT_WITH_INPUT_COMMANDT,
+    EXAMPLE_VIEWBOX_CODE_INPUT,
+    HASH_EXAMPLE_GOOD_TEX,
+    RENDERED_SVG_PATH_GOOD_TIKZ,
+)
 
 # ========================= run_command =========================
 
@@ -459,7 +468,6 @@ def test_run_latex_save_image_call(
 
     format = "png" if rasterize else "svg"
 
-    expected_path = tmp_path / f"tikz.{format}"
 
     image = f"image.{format}"
     mocker.patch.object(
@@ -467,7 +475,7 @@ def test_run_latex_save_image_call(
     )
 
     # Act
-    res = tex_document_mock__run_latex.run_latex(save_image=image, rasterize=rasterize)
+    tex_document_mock__run_latex.run_latex(save_image=image, rasterize=rasterize)
 
     # Assert
     tex_document_mock__run_latex._save.assert_called_once_with(image, format)

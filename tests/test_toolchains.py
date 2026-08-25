@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from jupyter_tikz.errors import InvalidToolchainError
 from jupyter_tikz.commands import build_commands
+from jupyter_tikz.errors import InvalidToolchainError
 from jupyter_tikz.toolchains import TOOLCHAINS, check_toolchain, check_toolchains
 
 

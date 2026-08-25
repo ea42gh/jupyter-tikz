@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import pytest
 
 from jupyter_tikz.save_paths import resolve_save_destination

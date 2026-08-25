@@ -1,5 +1,3 @@
-import pytest
-
 
 def test_resolve_crop_mode_defaults():
     from jupyter_tikz.executor import resolve_crop_mode

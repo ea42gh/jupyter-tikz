@@ -232,7 +232,7 @@ def test_valid_input_type(tikz_magic_mock, input_type, expected_input_type):
     cell = "any cell content"
 
     # Act
-    res = tikz_magic_mock.tikz(line, cell)
+    tikz_magic_mock.tikz(line, cell)
 
     # Assert
     assert tikz_magic_mock._get_input_type(input_type) == expected_input_type

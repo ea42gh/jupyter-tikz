@@ -1,6 +1,6 @@
 __author__ = """Lucas Lima Rodrigues"""
 __email__ = "lucaslrodri@gmail.com"
-__version__ = "0.5.8"
+__version__ = "0.6.0"
 
 from .args import _ARGS
 from .errors import (

@@ -324,7 +324,7 @@ All notable changes to this project are presented below.
 | `%tikz -tp=pdflatex` expected legacy path behavior | Expect executor default (`pdftex_pdftocairo`) unless you force legacy via custom `--tex-args` or other engine |
 | relative `..` in output targets (e.g. `--keep-temp ../tmp`) | Use a local/safe path (e.g. `--keep-temp outputs/tmp`) or an absolute path |
 
-## v0.5.8
+## v0.6.0
 
 **✨ Improvements**
 

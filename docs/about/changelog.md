@@ -1,6 +1,6 @@
 All notable changes to this project are presented below.
 
-## v0.5.8
+## v0.6.0
 
 **✨ Improvements**
 

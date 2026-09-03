@@ -38,7 +38,7 @@ def _args_table():
                     "&nbsp;" * 4 + f"*Defaults* to `-{short}={params['default']}`."
                 )
             elif params["default"] is None:
-                description.append("&nbsp;" * 4 + f"*Defaults* to None.")
+                description.append("&nbsp;" * 4 + "*Defaults* to None.")
         description = "<br>".join(description)
 
         table += f"| {argument} | {description} |\n"

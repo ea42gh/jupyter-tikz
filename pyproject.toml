@@ -80,11 +80,16 @@ warn_unused_ignores = true
 
 [tool.taskipy.tasks]
 fmt = "black jupyter_tikz tests && isort jupyter_tikz tests"
-lint = "task fmt"
-lint_check = "ruff check jupyter_tikz"
+fmt_check = "black --check jupyter_tikz tests && isort --check-only jupyter_tikz tests"
+lint = "ruff check jupyter_tikz tests"
+lint_check = "task fmt_check && task lint"
 type_check = "mypy jupyter_tikz"
 test = "pytest -vv --cov=jupyter_tikz"
 post_test = "coverage lcov"
 ci_local = "task lint_check && task type_check && task test"
 readme = "python main.py"
-build = "task lint && task test && task readme && poetry build"
+build = "task lint_check && task test && task readme && poetry build"
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 80.0

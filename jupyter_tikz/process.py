@@ -6,7 +6,7 @@ import subprocess
 import sys
 from hashlib import md5
 from pathlib import Path
-from typing import List
+from typing import List, Sequence
 
 from jupyter_tikz.diagnostics import tail_lines
 from jupyter_tikz.toolchains import Toolchain
@@ -22,7 +22,7 @@ def env_truthy(name: str) -> bool:
 
 def run_command(
     tex_obj,
-    command: str | list[str] | tuple[str, ...],
+    command: str | Sequence[str],
     full_err: bool = False,
     **kwargs,
 ) -> int:

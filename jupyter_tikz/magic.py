@@ -21,9 +21,9 @@ from .args import (
     _apply_args,
     _remove_wrapping_quotes,
 )
+from .diagnostics import tail_lines
 from .errors import InvalidOutputStemError, InvalidPathError, InvalidToolchainError
 from .executor import RenderError, render_svg_with_artifacts
-from .legacy_render import _tail_lines
 from .models import TexDocument, TexFragment
 from .naming import validate_output_stem
 from .paths import validate_user_output_path
@@ -90,7 +90,7 @@ class TikZMagics(Magics):
     def _print_err(msg: str, full_err: bool) -> None:
         err_msg = msg
         if not full_err:
-            err_msg = _tail_lines(err_msg, max_lines=20)
+            err_msg = tail_lines(err_msg, max_lines=20)
         print(err_msg, file=sys.stderr)
 
     @staticmethod

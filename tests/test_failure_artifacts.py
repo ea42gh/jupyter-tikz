@@ -29,7 +29,7 @@ def test_render_svg_keeps_artifacts_on_failure(monkeypatch):
             returncodes=[1],
         )
 
-    monkeypatch.setattr(ex, "_run_toolchain_in_dir", fake_run_toolchain_in_dir)
+    monkeypatch.setattr(ex, "run_toolchain_in_dir", fake_run_toolchain_in_dir)
 
     with pytest.raises(ex.RenderError) as ei:
         ex.render_svg(
@@ -71,7 +71,7 @@ def test_render_svg_with_artifacts_includes_diagnostics_tail(monkeypatch, tmp_pa
             returncodes=[1],
         )
 
-    monkeypatch.setattr(ex, "_run_toolchain_in_dir", fake_run_toolchain_in_dir)
+    monkeypatch.setattr(ex, "run_toolchain_in_dir", fake_run_toolchain_in_dir)
 
     with pytest.raises(ex.RenderError) as ei:
         ex.render_svg_with_artifacts(

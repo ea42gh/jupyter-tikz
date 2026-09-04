@@ -15,7 +15,7 @@ from jupyter_tikz.canvas_frame import (
     apply_canvas_frame_to_svg_file,
     apply_canvas_frame_to_svg_text,
 )
-from jupyter_tikz.engine import _run_toolchain_in_dir
+from jupyter_tikz.engine import run_toolchain_in_dir
 from jupyter_tikz.naming import validate_output_stem
 from jupyter_tikz.render_options import ResolvedRenderOptions, resolve_render_options
 from jupyter_tikz.render_types import (  # noqa: F401
@@ -80,7 +80,7 @@ def render_svg_with_artifacts(
     )
     outdir = Path(output_dir)
 
-    artifacts = _run_toolchain_in_dir(
+    artifacts = run_toolchain_in_dir(
         opts.toolchain,
         tex_source,
         outdir,
@@ -122,7 +122,7 @@ def run_toolchain(
 
     with tempfile.TemporaryDirectory() as tmp:
         workdir = Path(tmp)
-        artifacts = _run_toolchain_in_dir(
+        artifacts = run_toolchain_in_dir(
             toolchain,
             tex_source,
             workdir,
@@ -213,7 +213,7 @@ def render_svg(
 
     ok = False
     try:
-        artifacts = _run_toolchain_in_dir(
+        artifacts = run_toolchain_in_dir(
             opts.toolchain,
             tex_source,
             workdir,

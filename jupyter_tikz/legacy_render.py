@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import os
 import shlex
-import subprocess
-import sys
 from pathlib import Path
-from typing import Literal, Sequence
+from typing import Literal
 
 import jinja2
 from IPython import display
@@ -13,46 +11,6 @@ from IPython.display import SVG, Image
 
 from .naming import validate_output_stem
 from .save_paths import resolve_save_destination
-
-
-def _tail_lines(msg: str, max_lines: int = 20) -> str:
-    if max_lines <= 0:
-        return msg
-    return "\n".join(msg.splitlines()[-max_lines:])
-
-
-def run_command(
-    tex_obj,
-    command: str | Sequence[str],
-    full_err: bool = False,
-    **kwargs,
-) -> int:
-    if "working_dir" in kwargs and "cwd" not in kwargs:
-        kwargs["cwd"] = kwargs.pop("working_dir")
-
-    if isinstance(command, str):
-        cmd = shlex.split(command)
-    else:
-        cmd = [str(c) for c in command]
-
-    try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            check=False,
-            **kwargs,
-        )
-    except OSError as exc:
-        print(str(exc), file=sys.stderr)
-        return 1
-
-    if result.returncode != 0:
-        err_msg = result.stderr if result.stderr else result.stdout
-        if not full_err:
-            err_msg = _tail_lines(err_msg, max_lines=20)
-        print(err_msg, file=sys.stderr)
-    return result.returncode
 
 
 def save_artifact(

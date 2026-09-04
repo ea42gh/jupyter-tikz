@@ -41,7 +41,7 @@ def _fake_run_toolchain_in_dir(
 
 
 def test_artifacts_prefix_writes_artifacts(monkeypatch, tmp_path):
-    monkeypatch.setattr(ex, "_run_toolchain_in_dir", _fake_run_toolchain_in_dir)
+    monkeypatch.setattr(ex, "run_toolchain_in_dir", _fake_run_toolchain_in_dir)
 
     artifacts_prefix = tmp_path / "kept" / "my_render"
     tex = r"\documentclass{article}\begin{document}x\end{document}"
@@ -60,7 +60,7 @@ def test_artifacts_prefix_writes_artifacts(monkeypatch, tmp_path):
 
 
 def test_artifacts_path_directory_uses_unique_stem(monkeypatch, tmp_path):
-    monkeypatch.setattr(ex, "_run_toolchain_in_dir", _fake_run_toolchain_in_dir)
+    monkeypatch.setattr(ex, "run_toolchain_in_dir", _fake_run_toolchain_in_dir)
 
     artifacts_dir = tmp_path / "kept_dir"
 
@@ -81,7 +81,7 @@ def test_artifacts_path_directory_uses_unique_stem(monkeypatch, tmp_path):
 
 
 def test_artifacts_path_and_prefix_together_raise(monkeypatch, tmp_path):
-    monkeypatch.setattr(ex, "_run_toolchain_in_dir", _fake_run_toolchain_in_dir)
+    monkeypatch.setattr(ex, "run_toolchain_in_dir", _fake_run_toolchain_in_dir)
     with pytest.raises(
         ValueError, match="only one of artifacts_path or artifacts_prefix"
     ):
@@ -94,7 +94,7 @@ def test_artifacts_path_and_prefix_together_raise(monkeypatch, tmp_path):
 
 
 def test_render_svg_rejects_invalid_output_stem(monkeypatch):
-    monkeypatch.setattr(ex, "_run_toolchain_in_dir", _fake_run_toolchain_in_dir)
+    monkeypatch.setattr(ex, "run_toolchain_in_dir", _fake_run_toolchain_in_dir)
     with pytest.raises(ValueError, match="output_stem"):
         ex.render_svg(
             "any tex",
@@ -104,7 +104,7 @@ def test_render_svg_rejects_invalid_output_stem(monkeypatch):
 
 
 def test_render_svg_rejects_parent_ref_artifacts_paths(monkeypatch):
-    monkeypatch.setattr(ex, "_run_toolchain_in_dir", _fake_run_toolchain_in_dir)
+    monkeypatch.setattr(ex, "run_toolchain_in_dir", _fake_run_toolchain_in_dir)
     with pytest.raises(ValueError, match="artifacts_path"):
         ex.render_svg(
             "any tex",

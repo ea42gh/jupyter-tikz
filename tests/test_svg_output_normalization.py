@@ -127,7 +127,7 @@ def test_render_svg_strip_xml_declaration_toggle(monkeypatch, tmp_path: Path):
             returncodes=[0, 0],
         )
 
-    monkeypatch.setattr(ex, "_run_toolchain_in_dir", fake_run_toolchain_in_dir)
+    monkeypatch.setattr(ex, "run_toolchain_in_dir", fake_run_toolchain_in_dir)
 
     tex = "\\documentclass{standalone}\\begin{document}x\\end{document}"
     prefix = tmp_path / "kept" / "job"

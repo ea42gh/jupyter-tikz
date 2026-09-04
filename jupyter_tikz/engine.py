@@ -100,6 +100,3 @@ def run_toolchain_in_dir(
         stderr_path=stderr_path,
         returncodes=returncodes,
     )
-
-
-_run_toolchain_in_dir = run_toolchain_in_dir

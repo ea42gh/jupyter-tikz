@@ -129,7 +129,7 @@ def test_cache_can_be_disabled(monkeypatch):
             returncodes=[0],
         )
 
-    monkeypatch.setattr(ex, "_run_toolchain_in_dir", fake_run_toolchain_in_dir)
+    monkeypatch.setattr(ex, "run_toolchain_in_dir", fake_run_toolchain_in_dir)
 
     tex = "\\documentclass{article}\\begin{document}x\\end{document}"
 

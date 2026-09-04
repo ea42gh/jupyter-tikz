@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import os
+import shlex
 import subprocess
+import sys
 from hashlib import md5
 from pathlib import Path
 from typing import List
 
+from jupyter_tikz.diagnostics import tail_lines
 from jupyter_tikz.toolchains import Toolchain
 
 
@@ -15,6 +18,30 @@ def env_truthy(name: str) -> bool:
     if v is None:
         return False
     return v.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def run_command(
+    tex_obj,
+    command: str | list[str] | tuple[str, ...],
+    full_err: bool = False,
+    **kwargs,
+) -> int:
+    """Run a legacy TexDocument command and print concise diagnostics."""
+
+    if "working_dir" in kwargs and "cwd" not in kwargs:
+        kwargs["cwd"] = kwargs.pop("working_dir")
+    cmd = shlex.split(command) if isinstance(command, str) else [str(c) for c in command]
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False, **kwargs)
+    except OSError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    if result.returncode != 0:
+        err_msg = result.stderr if result.stderr else result.stdout
+        if not full_err:
+            err_msg = tail_lines(err_msg, max_lines=20)
+        print(err_msg, file=sys.stderr)
+    return result.returncode
 
 
 def build_subprocess_env(*, source_cwd: Path | None = None) -> dict[str, str]:

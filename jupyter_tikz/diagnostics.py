@@ -15,6 +15,14 @@ class ToolchainFailureArtifacts(Protocol):
     def returncodes(self) -> list[int]: ...
 
 
+def tail_lines(msg: str, max_lines: int = 20) -> str:
+    """Return the final lines of a diagnostic message."""
+
+    if max_lines <= 0:
+        return msg
+    return "\n".join(msg.splitlines()[-max_lines:])
+
+
 def tail_text(path: Path, *, limit_chars: int) -> str:
     """Read the tail of a text file for diagnostics."""
 

@@ -9,7 +9,7 @@ from .args import (
     _get_arg_params,
     _remove_wrapping_quotes,
 )
-from .legacy_render import _tail_lines
+from .diagnostics import tail_lines
 from .magic import TikZMagics
 from .models import ANY_CODE_HASH, TexDocument, TexFragment, code_hash
 
@@ -26,5 +26,5 @@ __all__ = [
     "_EXTRAS_CONFLITS_ERR",
     "_PRINT_CONFLICT_ERR",
     "_INPUT_TYPE_CONFLIT_ERR",
-    "_tail_lines",
+    "tail_lines",
 ]

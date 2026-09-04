@@ -10,8 +10,10 @@ from typing import Any, Literal, Sequence
 from IPython.display import SVG, Image
 
 from .args import _EXTRAS_CONFLITS_ERR
-from .legacy_render import render_jinja, run_latex, save_artifact
+from .artifacts import save_artifact
+from .legacy_render import run_latex
 from .process import run_command
+from .templates import render_jinja
 
 
 def code_hash(code: str) -> str:

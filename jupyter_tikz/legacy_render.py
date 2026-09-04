@@ -3,47 +3,11 @@ from __future__ import annotations
 import os
 import shlex
 from pathlib import Path
-from typing import Literal
 
-import jinja2
 from IPython import display
 from IPython.display import SVG, Image
 
 from .naming import validate_output_stem
-from .save_paths import resolve_save_destination
-
-
-def save_artifact(
-    tex_obj,
-    dest: str,
-    ext: Literal["tikz", "tex", "png", "svg", "pdf"],
-) -> None:
-    dest_path = resolve_save_destination(dest, ext)
-
-    if ext == "tikz":
-        if not tex_obj.tikz_code:
-            raise ValueError("No TikZ code to save.")
-        dest_path.write_text(tex_obj.tikz_code, encoding="utf-8")
-    else:
-        stem = str(getattr(tex_obj, "_active_output_stem", tex_obj._hex_hash))
-        Path(stem).with_suffix(f".{ext}").replace(dest_path)
-
-
-def render_jinja(tex_obj, ns) -> None:
-    fs_loader = jinja2.FileSystemLoader(os.getcwd())
-
-    tmpl_env = jinja2.Environment(
-        loader=fs_loader,
-        block_start_string="(**",
-        block_end_string="**)",
-        variable_start_string="(*",
-        variable_end_string="*)",
-        comment_start_string="(~",
-        comment_end_string="~)",
-    )
-
-    tmpl = tmpl_env.from_string(tex_obj._code)
-    tex_obj._code = tmpl.render(**ns)
 
 
 def run_latex(

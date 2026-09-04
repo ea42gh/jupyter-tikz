@@ -6,12 +6,13 @@ import shutil
 import tempfile
 from hashlib import md5
 from pathlib import Path
-from typing import Optional, Tuple, Union
+from typing import Literal, Optional, Tuple, Union
 
 from jupyter_tikz.diagnostics import format_toolchain_failure
 from jupyter_tikz.naming import validate_output_stem
 from jupyter_tikz.paths import validate_user_output_path
 from jupyter_tikz.render_types import RenderArtifacts, RenderError
+from jupyter_tikz.save_paths import resolve_save_destination
 
 _PAGE_SUFFIX_RE_CACHE: dict[str, re.Pattern[str]] = {}
 
@@ -143,3 +144,20 @@ def resolve_artifacts_target(
     return p, f"{safe_stem}-{h8}", False
 
 
+
+
+def save_artifact(
+    tex_obj,
+    dest: str,
+    ext: Literal["tikz", "tex", "png", "svg", "pdf"],
+) -> None:
+    """Save a legacy TexDocument artifact to its destination."""
+
+    dest_path = resolve_save_destination(dest, ext)
+    if ext == "tikz":
+        if not tex_obj.tikz_code:
+            raise ValueError("No TikZ code to save.")
+        dest_path.write_text(tex_obj.tikz_code, encoding="utf-8")
+    else:
+        stem = str(getattr(tex_obj, "_active_output_stem", tex_obj._hex_hash))
+        Path(stem).with_suffix(f".{ext}").replace(dest_path)

@@ -15,6 +15,7 @@ The gating is *opt-out* (tests run when the relevant binaries are available).
 
 from __future__ import annotations
 
+import shutil
 import sys
 from dataclasses import dataclass
 from hashlib import md5
@@ -296,6 +297,17 @@ def pytest_runtest_setup(item: pytest.Item) -> None:
         )
         if lualatex is None:
             pytest.skip("lualatex not found")
+
+        if shutil.which("kpsewhich") is not None:
+            package_probe = subprocess.run(
+                ["kpsewhich", "luatex85.sty"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+            )
+            if package_probe.returncode != 0 or not package_probe.stdout.strip():
+                pytest.skip("lualatex is missing the luatex85.sty package")
 
         probe_key = "_jupyter_tikz_lualatex_probe_ok"
         cached = getattr(item.config, probe_key, None)

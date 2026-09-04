@@ -13,10 +13,10 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
-      - name: Set up Python 3.11
+      - name: Set up Python 3.12
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
-          python-version: "3.10"
+          python-version: "3.12"
 
       - name: Install poetry
         run: pip install poetry
@@ -36,7 +36,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.12", "3.13"]
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -62,18 +62,6 @@ jobs:
       matrix:
         include:
           - tex_engine: pdflatex
-            python_version: "3.10"
-            default_toolchain: pdftex_pdftocairo
-            include_xetex: false
-            include_luatex: false
-            experimental: false
-          - tex_engine: pdflatex
-            python_version: "3.11"
-            default_toolchain: pdftex_pdftocairo
-            include_xetex: false
-            include_luatex: false
-            experimental: false
-          - tex_engine: pdflatex
             python_version: "3.12"
             default_toolchain: pdftex_pdftocairo
             include_xetex: false
@@ -86,13 +74,13 @@ jobs:
             include_luatex: false
             experimental: false
           - tex_engine: xelatex
-            python_version: "3.11"
+            python_version: "3.12"
             default_toolchain: xelatex_pdftocairo
             include_xetex: true
             include_luatex: false
             experimental: false
           - tex_engine: lualatex
-            python_version: "3.11"
+            python_version: "3.12"
             default_toolchain: pdftex_pdftocairo
             include_xetex: false
             include_luatex: true

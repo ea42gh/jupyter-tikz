@@ -11,7 +11,7 @@ from IPython.display import SVG, Image
 
 from .args import _EXTRAS_CONFLITS_ERR
 from .artifacts import save_artifact
-from .legacy_render import run_latex
+from .document_render import run_latex
 from .process import run_command
 from .templates import render_jinja
 
